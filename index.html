@@ -1,0 +1,4569 @@
+<!DOCTYPE html>
+<html lang="zh-Hant" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="color-scheme" content="dark light" />
+  <meta name="theme-color" content="#0f172a" id="themeColorMeta" />
+  <!-- v2 安全加固：CSP 限制連線目的地。
+       若用 Cloudflare Worker 代理，https://*.workers.dev 已允許；自訂網域請自行加入 connect-src。 -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https://api.deepseek.com https://*.workers.dev https://ziwe-kevin.www-wongkevin404.workers.dev https://challenges.cloudflare.com; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; base-uri 'none'; form-action 'none'; object-src 'none'" />
+  <meta name="description" content="結合紫微斗數牌卡與 AI 的智慧解讀。選擇主星、輔星與十二長生，探索此刻的星曜能量。" />
+  <title>🔮 紫微斗數 AI 解牌</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%94%AE%3C/text%3E%3C/svg%3E" />
+
+  <script>
+    /* 在首次繪製前套用主題，避免閃爍（FOUC）。 */
+    (function () {
+      try {
+        var pref = localStorage.getItem("zwds.theme") || "auto";
+        var dark = pref === "dark" || (pref === "auto" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+        var root = document.documentElement;
+        root.dataset.theme = dark ? "dark" : "light";
+        root.dataset.themePref = pref;
+      } catch (error) {
+        document.documentElement.dataset.theme = "dark";
+        document.documentElement.dataset.themePref = "auto";
+      }
+    })();
+  </script>
+
+  <style>
+    /* ============================================================
+       1. 設計變數（Design Tokens）
+       ============================================================ */
+    :root {
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang TC",
+        "Noto Sans TC", "Microsoft JhengHei", "Helvetica Neue", Arial, sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      --max-width: 1400px;
+      --radius-xl: 26px;
+      --radius-lg: 20px;
+      --radius-md: 14px;
+      --radius-sm: 11px;
+      --ease: cubic-bezier(0.22, 0.72, 0.28, 1);
+      --accent: #8b5cf6;
+      --accent-strong: #7c3aed;
+      --accent-soft: rgba(139, 92, 246, 0.14);
+      --magenta: #d946ef;
+      --cyan: #22d3ee;
+      --amber: #f59e0b;
+      --danger: #f87171;
+      --success: #34d399;
+    }
+
+    [data-theme="dark"] {
+      color-scheme: dark;
+      --bg: #0f172a;
+      --bg-elevated: #16213a;
+      --card: #1e293b;
+      --card-glass: rgba(30, 41, 59, 0.72);
+      --chip: rgba(148, 163, 184, 0.08);
+      --chip-hover: rgba(148, 163, 184, 0.15);
+      --inset: rgba(15, 23, 42, 0.55);
+      --text: #f8fafc;
+      --text-soft: #cbd5e1;
+      --muted: #94a3b8;
+      --border: rgba(148, 163, 184, 0.16);
+      --border-strong: rgba(148, 163, 184, 0.3);
+      --shadow: 0 24px 60px -24px rgba(0, 0, 0, 0.7);
+      --glow: rgba(139, 92, 246, 0.45);
+      --aura-1: rgba(139, 92, 246, 0.22);
+      --aura-2: rgba(34, 211, 238, 0.1);
+      --aura-3: rgba(217, 70, 239, 0.12);
+      --header-bg: rgba(15, 23, 42, 0.74);
+      --chip-selected-text: #ffffff;
+    }
+
+    [data-theme="light"] {
+      color-scheme: light;
+      --accent: #7c3aed;
+      --accent-strong: #6d28d9;
+      --accent-soft: rgba(124, 58, 237, 0.09);
+      --bg: #f8fafc;
+      --bg-elevated: #ffffff;
+      --card: #ffffff;
+      --card-glass: rgba(255, 255, 255, 0.8);
+      --chip: rgba(15, 23, 42, 0.035);
+      --chip-hover: rgba(15, 23, 42, 0.07);
+      --inset: rgba(248, 250, 252, 0.92);
+      --text: #0f172a;
+      --text-soft: #334155;
+      --muted: #64748b;
+      --border: rgba(15, 23, 42, 0.1);
+      --border-strong: rgba(15, 23, 42, 0.2);
+      --shadow: 0 24px 60px -30px rgba(15, 23, 42, 0.28);
+      --glow: rgba(124, 58, 237, 0.3);
+      --aura-1: rgba(139, 92, 246, 0.16);
+      --aura-2: rgba(34, 211, 238, 0.1);
+      --aura-3: rgba(217, 70, 239, 0.08);
+      --header-bg: rgba(248, 250, 252, 0.8);
+      --danger: #dc2626;
+      --success: #059669;
+      --chip-selected-text: #ffffff;
+    }
+
+    /* ============================================================
+       2. 基礎樣式
+       ============================================================ */
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+      -webkit-text-size-adjust: 100%;
+      text-size-adjust: 100%;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100dvh;
+      overflow-x: hidden;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-sans);
+      font-size: 16px;
+      line-height: 1.65;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      transition: background-color 0.35s var(--ease), color 0.35s var(--ease);
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: -2;
+      pointer-events: none;
+      background-image: radial-gradient(var(--border) 1px, transparent 1px);
+      background-size: 34px 34px;
+      opacity: 0.55;
+      -webkit-mask-image: radial-gradient(ellipse at 50% 0%, #000 0%, transparent 72%);
+      mask-image: radial-gradient(ellipse at 50% 0%, #000 0%, transparent 72%);
+    }
+
+    /* 背景極光光暈 */
+    .aura {
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      pointer-events: none;
+      overflow: hidden;
+    }
+
+    .aura::before,
+    .aura::after {
+      content: "";
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(90px);
+    }
+
+    .aura::before {
+      width: min(950px, 110vw);
+      height: min(950px, 110vw);
+      top: -38%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: radial-gradient(circle, var(--aura-1) 0%, transparent 66%);
+    }
+
+    .aura::after {
+      width: 640px;
+      height: 640px;
+      right: -18%;
+      top: 32%;
+      background: radial-gradient(circle, var(--aura-3) 0%, transparent 68%);
+    }
+
+    .aura span {
+      position: absolute;
+      width: 560px;
+      height: 560px;
+      left: -16%;
+      top: 58%;
+      border-radius: 50%;
+      filter: blur(100px);
+      background: radial-gradient(circle, var(--aura-2) 0%, transparent 68%);
+    }
+
+    h1,
+    h2,
+    h3,
+    h4,
+    p {
+      margin-top: 0;
+    }
+
+    button,
+    input {
+      font: inherit;
+    }
+
+    button {
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    a {
+      color: var(--accent);
+      text-underline-offset: 3px;
+    }
+
+    :focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    ::selection {
+      background: color-mix(in srgb, var(--accent) 35%, transparent);
+      color: var(--text);
+    }
+
+    ::-webkit-scrollbar {
+      width: 12px;
+      height: 12px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--border-strong);
+      border: 3px solid var(--bg);
+      border-radius: 999px;
+    }
+
+    [hidden] {
+      display: none !important;
+    }
+
+    .skip-link {
+      position: fixed;
+      left: 16px;
+      top: -120px;
+      z-index: 200;
+      padding: 11px 18px;
+      border-radius: 10px;
+      background: var(--accent-strong);
+      color: #fff;
+      font-size: 0.85rem;
+      font-weight: 650;
+      text-decoration: none;
+      transition: top 0.2s var(--ease);
+    }
+
+    .skip-link:focus {
+      top: 14px;
+    }
+
+    .shell {
+      width: 100%;
+      max-width: var(--max-width);
+      margin-inline: auto;
+      padding-inline: clamp(16px, 4vw, 40px);
+    }
+
+    .glass {
+      position: relative;
+      background: var(--card-glass);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow);
+      -webkit-backdrop-filter: blur(20px) saturate(135%);
+      backdrop-filter: blur(20px) saturate(135%);
+    }
+
+    @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+      .glass {
+        background: var(--card);
+      }
+    }
+
+    /* 進場與狀態切換動畫 */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(14px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    .hero {
+      animation: fadeUp 0.72s var(--ease) backwards;
+    }
+
+    .group {
+      animation: fadeUp 0.62s var(--ease) backwards;
+    }
+
+    .group:nth-child(2) { animation-delay: 0.06s; }
+    .group:nth-child(3) { animation-delay: 0.12s; }
+
+    .summary {
+      animation: fadeUp 0.66s 0.1s var(--ease) backwards;
+    }
+
+    .result {
+      animation: fadeUp 0.66s 0.16s var(--ease) backwards;
+    }
+
+    .state:not([hidden]) {
+      animation: fadeIn 0.3s var(--ease);
+    }
+
+    /* 主題切換時的短暫過渡 */
+    html.theme-changing,
+    html.theme-changing *,
+    html.theme-changing *::before,
+    html.theme-changing *::after {
+      transition: background-color 0.32s var(--ease), color 0.32s var(--ease),
+        border-color 0.32s var(--ease), box-shadow 0.32s var(--ease) !important;
+    }
+
+    /* ============================================================
+       3. 頂部導覽
+       ============================================================ */
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 40;
+      background: var(--header-bg);
+      border-bottom: 1px solid var(--border);
+      -webkit-backdrop-filter: blur(20px) saturate(140%);
+      backdrop-filter: blur(20px) saturate(140%);
+    }
+
+    .topbar-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      min-height: 64px;
+      padding-block: 10px;
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 11px;
+      min-height: 44px;
+      color: var(--text);
+      font-size: 0.95rem;
+      font-weight: 750;
+      letter-spacing: 0.01em;
+      text-decoration: none;
+      border-radius: 12px;
+    }
+
+    .brand-mark {
+      display: grid;
+      place-items: center;
+      width: 39px;
+      height: 39px;
+      flex: 0 0 auto;
+      border-radius: 12px;
+      border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+      background: linear-gradient(140deg, rgba(139, 92, 246, 0.28), rgba(217, 70, 239, 0.1));
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 8px 20px -12px var(--glow);
+      font-size: 20px;
+      line-height: 1;
+    }
+
+    .brand-ai {
+      color: var(--accent);
+    }
+
+    .topbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .icon-btn {
+      display: grid;
+      place-items: center;
+      width: 44px;
+      height: 44px;
+      min-width: 44px;
+      padding: 0;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--chip);
+      color: var(--text-soft);
+      cursor: pointer;
+      transition: background-color 0.18s var(--ease), border-color 0.18s var(--ease),
+        color 0.18s var(--ease), transform 0.18s var(--ease);
+    }
+
+    .icon-btn:hover {
+      background: var(--chip-hover);
+      border-color: var(--border-strong);
+      color: var(--text);
+      transform: translateY(-1px);
+    }
+
+    .icon-btn:active {
+      transform: translateY(0) scale(0.97);
+    }
+
+    .icon-btn svg {
+      width: 19px;
+      height: 19px;
+    }
+
+    [data-theme="dark"] .icon-sun,
+    [data-theme="light"] .icon-moon {
+      display: block;
+    }
+
+    [data-theme="dark"] .icon-moon,
+    [data-theme="light"] .icon-sun {
+      display: none;
+    }
+
+    /* ============================================================
+       4. 主視覺
+       ============================================================ */
+    .hero {
+      padding-block: clamp(44px, 7vw, 82px) clamp(28px, 4vw, 46px);
+      text-align: center;
+    }
+
+    .hero-eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0 0 20px;
+      padding: 7px 14px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--chip);
+      color: var(--muted);
+      font-size: 0.68rem;
+      font-weight: 650;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+    }
+
+    .pulse-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 0 0 var(--glow);
+      animation: pulseDot 2.6s infinite;
+    }
+
+    @keyframes pulseDot {
+      0% { box-shadow: 0 0 0 0 var(--glow); }
+      65% { box-shadow: 0 0 0 8px transparent; }
+      100% { box-shadow: 0 0 0 0 transparent; }
+    }
+
+    .hero-title {
+      margin: 0;
+      font-size: clamp(2.05rem, 5.4vw, 3.6rem);
+      font-weight: 820;
+      line-height: 1.12;
+      letter-spacing: -0.025em;
+      text-wrap: balance;
+    }
+
+    .gradient-text {
+      background: linear-gradient(118deg, #a78bfa 0%, #c084fc 36%, #f0abfc 68%, #67e8f9 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+
+    [data-theme="light"] .gradient-text {
+      background: linear-gradient(118deg, #6d28d9 0%, #9333ea 38%, #db2777 72%, #0891b2 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+
+    .hero-subtitle {
+      max-width: 560px;
+      margin: 18px auto 0;
+      color: var(--text-soft);
+      font-size: clamp(0.98rem, 1.6vw, 1.12rem);
+      letter-spacing: 0.015em;
+      text-wrap: balance;
+    }
+
+    .hero-steps {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 27px;
+    }
+
+    .step-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--chip);
+      color: var(--text-soft);
+      font-size: 0.8rem;
+      white-space: nowrap;
+    }
+
+    .step-pill b {
+      color: var(--accent);
+      font-size: 0.66rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+    }
+
+    .hero-meta {
+      margin: 15px 0 0;
+      color: var(--muted);
+      font-size: 0.73rem;
+      letter-spacing: 0.08em;
+    }
+
+    /* ============================================================
+       5. 牌組卡片
+       ============================================================ */
+    .groups {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: clamp(14px, 1.6vw, 22px);
+      align-items: start;
+    }
+
+    .group {
+      overflow: hidden;
+      padding: clamp(17px, 2vw, 24px);
+    }
+
+    .group::before {
+      content: "";
+      position: absolute;
+      inset: 0 0 auto 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--glow), transparent);
+      opacity: 0.8;
+      pointer-events: none;
+    }
+
+    .group--support,
+    .group--life {
+      align-self: start;
+    }
+
+    .group-head {
+      display: flex;
+      align-items: flex-start;
+      gap: 11px;
+      margin-bottom: 21px;
+    }
+
+    .group-number {
+      flex: 0 0 auto;
+      margin-top: 2px;
+      padding: 5px 8px;
+      border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
+      border-radius: 8px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-size: 0.66rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      line-height: 1.2;
+    }
+
+    .group-heading {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .group-title {
+      margin: 0;
+      font-size: 1.06rem;
+      font-weight: 750;
+      letter-spacing: 0.01em;
+    }
+
+    .group-sub {
+      margin: 3px 0 0;
+      color: var(--muted);
+      font-size: 0.74rem;
+      line-height: 1.5;
+    }
+
+    .group-count {
+      display: inline-block;
+      margin-left: 7px;
+      padding: 2px 7px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--chip);
+      color: var(--muted);
+      font-size: 0.63rem;
+      font-weight: 600;
+      vertical-align: 2px;
+      white-space: nowrap;
+    }
+
+    .reset-btn {
+      display: grid;
+      place-items: center;
+      width: 44px;
+      height: 44px;
+      flex: 0 0 auto;
+      margin: -7px -7px 0 0;
+      padding: 0;
+      border: 1px solid transparent;
+      border-radius: 10px;
+      background: transparent;
+      color: var(--muted);
+      font-size: 1.15rem;
+      line-height: 1;
+      cursor: pointer;
+      transition: background-color 0.18s var(--ease), color 0.18s var(--ease),
+        border-color 0.18s var(--ease), transform 0.25s var(--ease);
+    }
+
+    .reset-btn:hover {
+      border-color: var(--border);
+      background: var(--chip-hover);
+      color: var(--text);
+      transform: rotate(-30deg);
+    }
+
+    .reset-btn:disabled {
+      opacity: 0.3;
+      cursor: default;
+      transform: none;
+    }
+
+    .subgroup + .subgroup {
+      margin-top: 24px;
+    }
+
+    .subgroup-label {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 11px;
+      color: var(--muted);
+      font-size: 0.66rem;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+
+    .subgroup-label::after {
+      content: "";
+      flex: 1;
+      height: 1px;
+      background: linear-gradient(90deg, var(--border), transparent);
+    }
+
+    .chips {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
+      gap: 8px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .chip {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 44px;
+      padding: 8px 6px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--chip);
+      color: var(--text-soft);
+      font-family: inherit;
+      font-size: 0.835rem;
+      font-weight: 550;
+      line-height: 1.25;
+      letter-spacing: 0.01em;
+      text-align: center;
+      cursor: pointer;
+      touch-action: manipulation;
+      transition: transform 0.18s var(--ease), background-color 0.18s var(--ease),
+        border-color 0.18s var(--ease), color 0.18s var(--ease), box-shadow 0.24s var(--ease);
+    }
+
+    .chip::after {
+      content: "";
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: #fff;
+      opacity: 0;
+      transform: scale(0.4);
+      transition: opacity 0.2s var(--ease), transform 0.2s var(--ease);
+    }
+
+    .chip:hover {
+      border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
+      background: var(--chip-hover);
+      color: var(--text);
+      transform: translateY(-1px);
+    }
+
+    .chip:active {
+      transform: scale(0.97);
+    }
+
+    .chip:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    .chip.is-selected {
+      border-color: transparent;
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
+      color: var(--chip-selected-text);
+      box-shadow: 0 7px 22px -7px var(--glow), inset 0 1px 0 rgba(255, 255, 255, 0.28);
+      transform: translateY(-1px);
+    }
+
+    .chip.is-selected::after {
+      opacity: 1;
+      transform: scale(1);
+    }
+
+    .chip.is-selected:hover {
+      background: linear-gradient(135deg, #9f7aea 0%, var(--accent) 100%);
+      box-shadow: 0 10px 26px -8px var(--glow), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    }
+
+    .chip[data-name="空宮"] {
+      border-style: dashed;
+    }
+
+    .chip[data-name="空宮"].is-selected {
+      border-style: solid;
+    }
+
+    .chip.is-flash {
+      animation: chipFlash 0.65s var(--ease);
+    }
+
+    @keyframes chipFlash {
+      0%, 100% { filter: brightness(1); }
+      45% { filter: brightness(1.22); box-shadow: 0 0 0 3px var(--glow); }
+    }
+
+    .group-foot {
+      margin: 18px 0 0;
+      padding-top: 14px;
+      border-top: 1px dashed var(--border);
+      color: var(--muted);
+      font-size: 0.7rem;
+      line-height: 1.6;
+    }
+
+    /* 桌面：讓較短的牌組在捲動主星清單時保持可見 */
+    @media (min-width: 1101px) and (min-height: 720px) {
+      .group--support,
+      .group--life {
+        position: sticky;
+        top: 84px;
+      }
+    }
+
+    /* ============================================================
+       6. 已選牌組摘要
+       ============================================================ */
+    .summary {
+      display: grid;
+      grid-template-columns: minmax(150px, auto) minmax(0, 1fr) auto;
+      align-items: center;
+      gap: clamp(16px, 2vw, 28px);
+      margin-top: clamp(18px, 2.4vw, 26px);
+      padding: clamp(18px, 2.2vw, 26px);
+      scroll-margin-top: 90px;
+    }
+
+    .summary-head {
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+      min-width: 0;
+    }
+
+    .summary-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0;
+      font-size: 1.02rem;
+      font-weight: 750;
+      letter-spacing: 0.01em;
+      white-space: nowrap;
+    }
+
+    .summary-title::before {
+      content: "✦";
+      color: var(--accent);
+      font-size: 0.9rem;
+      text-shadow: 0 0 14px var(--glow);
+    }
+
+    .summary-sub {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.72rem;
+      line-height: 1.5;
+    }
+
+    .progress {
+      display: inline-flex;
+      align-items: baseline;
+      gap: 4px;
+      color: var(--muted);
+      font-size: 0.72rem;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .progress-count {
+      color: var(--accent);
+      font-size: 1.35rem;
+      font-weight: 820;
+      line-height: 1;
+    }
+
+    .slots {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .slot {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 3px;
+      min-width: 0;
+      min-height: 68px;
+      padding: 11px 13px;
+      border: 1px dashed var(--border-strong);
+      border-radius: var(--radius-md);
+      background: var(--inset);
+      transition: border-color 0.25s var(--ease), background-color 0.25s var(--ease),
+        box-shadow 0.25s var(--ease);
+    }
+
+    .slot.is-filled {
+      border-style: solid;
+      border-color: color-mix(in srgb, var(--accent) 42%, transparent);
+      background: linear-gradient(135deg, var(--accent-soft), transparent 75%);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 10%, transparent);
+    }
+
+    .slot-label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 0.68rem;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+    }
+
+    .dot {
+      width: 6px;
+      height: 6px;
+      flex: 0 0 auto;
+      border-radius: 50%;
+      background: var(--muted);
+    }
+
+    .slot[data-slot="main"] .dot {
+      background: var(--accent);
+      box-shadow: 0 0 8px var(--glow);
+    }
+
+    .slot[data-slot="support"] .dot {
+      background: var(--cyan);
+      box-shadow: 0 0 8px rgba(34, 211, 238, 0.45);
+    }
+
+    .slot[data-slot="life"] .dot {
+      background: var(--amber);
+      box-shadow: 0 0 8px rgba(245, 158, 11, 0.4);
+    }
+
+    .slot-value {
+      overflow: hidden;
+      color: var(--muted);
+      font-size: 0.96rem;
+      font-weight: 680;
+      line-height: 1.35;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .slot.is-filled .slot-value {
+      color: var(--text);
+    }
+
+    .slot-value.pop {
+      animation: valuePop 0.34s var(--ease);
+    }
+
+    @keyframes valuePop {
+      from { opacity: 0.2; transform: translateY(5px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .summary-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 9px;
+      flex-wrap: wrap;
+    }
+
+    /* ============================================================
+       7. 按鈕
+       ============================================================ */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: 46px;
+      padding: 0 17px;
+      border: 1px solid transparent;
+      border-radius: 12px;
+      font-family: inherit;
+      font-size: 0.88rem;
+      font-weight: 680;
+      line-height: 1.2;
+      white-space: nowrap;
+      cursor: pointer;
+      touch-action: manipulation;
+      transition: transform 0.18s var(--ease), background-color 0.18s var(--ease),
+        border-color 0.18s var(--ease), color 0.18s var(--ease), box-shadow 0.22s var(--ease),
+        opacity 0.18s var(--ease);
+    }
+
+    .btn:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    .btn-primary {
+      border-color: rgba(255, 255, 255, 0.14);
+      background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+      color: #fff;
+      box-shadow: 0 10px 26px -10px var(--glow);
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: linear-gradient(135deg, #9d75f8 0%, #7c3aed 100%);
+      box-shadow: 0 16px 34px -12px var(--glow);
+      transform: translateY(-2px);
+    }
+
+    .btn-primary:active:not(:disabled) {
+      transform: translateY(0) scale(0.99);
+    }
+
+    .btn-ghost {
+      border-color: var(--border);
+      background: var(--chip);
+      color: var(--text-soft);
+    }
+
+    .btn-ghost:hover:not(:disabled) {
+      border-color: var(--border-strong);
+      background: var(--chip-hover);
+      color: var(--text);
+      transform: translateY(-1px);
+    }
+
+    .btn:disabled {
+      opacity: 0.42;
+      cursor: not-allowed;
+      box-shadow: none;
+      transform: none;
+    }
+
+    .btn-sm {
+      min-height: 44px;
+      padding: 0 13px;
+      font-size: 0.8rem;
+    }
+
+    .btn-icon {
+      display: inline-flex;
+      font-size: 0.95rem;
+      line-height: 1;
+    }
+
+    .btn-spinner {
+      display: none;
+      width: 15px;
+      height: 15px;
+      border: 2px solid rgba(255, 255, 255, 0.35);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    .btn.is-loading {
+      opacity: 1;
+      cursor: progress;
+    }
+
+    .btn.is-loading .btn-spinner {
+      display: inline-block;
+    }
+
+    .btn.is-loading .btn-icon {
+      display: none;
+    }
+
+    .js-read {
+      min-width: 132px;
+    }
+
+    /* ============================================================
+       8. 解讀結果面板
+       ============================================================ */
+    .result {
+      margin-top: clamp(24px, 3.4vw, 40px);
+      overflow: hidden;
+      scroll-margin-top: 90px;
+    }
+
+    .result-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: clamp(16px, 2vw, 22px) clamp(18px, 2.4vw, 28px);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .result-heading {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .result-icon {
+      display: grid;
+      place-items: center;
+      width: 41px;
+      height: 41px;
+      flex: 0 0 auto;
+      border: 1px solid color-mix(in srgb, var(--accent) 26%, var(--border));
+      border-radius: 12px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-size: 1.05rem;
+      text-shadow: 0 0 14px var(--glow);
+    }
+
+    .result-head h2 {
+      margin: 0;
+      font-size: 1rem;
+      font-weight: 750;
+      letter-spacing: 0.01em;
+    }
+
+    .result-sub {
+      margin: 2px 0 0;
+      color: var(--muted);
+      font-size: 0.7rem;
+      letter-spacing: 0.04em;
+    }
+
+    .result-tools {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      flex: 0 0 auto;
+    }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 6px 11px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--chip);
+      color: var(--muted);
+      font-size: 0.7rem;
+      font-weight: 600;
+      white-space: nowrap;
+      transition: color 0.2s var(--ease), border-color 0.2s var(--ease);
+    }
+
+    .status i {
+      width: 6px;
+      height: 6px;
+      flex: 0 0 auto;
+      border-radius: 50%;
+      background: var(--muted);
+    }
+
+    .status[data-tone="loading"] {
+      border-color: color-mix(in srgb, var(--accent) 38%, transparent);
+      color: var(--accent);
+    }
+
+    .status[data-tone="loading"] i {
+      background: var(--accent);
+      animation: blink 1.2s ease-in-out infinite;
+    }
+
+    .status[data-tone="error"] {
+      border-color: color-mix(in srgb, var(--danger) 42%, transparent);
+      color: var(--danger);
+    }
+
+    .status[data-tone="error"] i {
+      background: var(--danger);
+    }
+
+    .status[data-tone="done"] {
+      border-color: color-mix(in srgb, var(--success) 42%, transparent);
+      color: var(--success);
+    }
+
+    .status[data-tone="done"] i {
+      background: var(--success);
+      box-shadow: 0 0 8px currentColor;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    .result-body {
+      min-height: 250px;
+      padding: clamp(20px, 3vw, 36px);
+    }
+
+    .state[hidden] {
+      display: none;
+    }
+
+    .state-idle,
+    .state-error {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding-block: clamp(14px, 2.4vw, 28px);
+      text-align: center;
+    }
+
+    .idle-orb,
+    .error-orb {
+      display: grid;
+      place-items: center;
+      width: 76px;
+      height: 76px;
+      margin-bottom: 17px;
+      border: 1px solid var(--border);
+      border-radius: 50%;
+      background: radial-gradient(circle at 34% 30%, var(--accent-soft), transparent 72%);
+      font-size: 2rem;
+      animation: floatOrb 5.5s ease-in-out infinite;
+    }
+
+    .error-orb {
+      width: 68px;
+      height: 68px;
+      border-color: color-mix(in srgb, var(--danger) 30%, transparent);
+      background: color-mix(in srgb, var(--danger) 10%, transparent);
+      animation: none;
+    }
+
+    @keyframes floatOrb {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-5px); }
+    }
+
+    .state h3 {
+      margin: 0 0 7px;
+      font-size: 1.06rem;
+      font-weight: 720;
+    }
+
+    .state > p {
+      max-width: 540px;
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.87rem;
+      line-height: 1.75;
+      text-wrap: pretty;
+    }
+
+    .idle-tags {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 7px;
+      margin-top: 18px;
+    }
+
+    .idle-tags span {
+      padding: 5px 11px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--chip);
+      color: var(--muted);
+      font-size: 0.7rem;
+    }
+
+    /* 載入狀態 */
+    .state-loading {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding-block: 6px;
+      text-align: center;
+    }
+
+    .loader-ring {
+      width: 52px;
+      height: 52px;
+      margin-bottom: 19px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      box-shadow: 0 0 26px -8px var(--glow);
+      animation: spin 0.95s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .loading-title {
+      margin: 0;
+      color: var(--text);
+      font-size: 0.96rem;
+      font-weight: 650;
+    }
+
+    .loading-sub {
+      margin: 5px 0 0;
+      color: var(--muted);
+      font-size: 0.78rem;
+    }
+
+    .skeleton {
+      display: grid;
+      gap: 10px;
+      width: 100%;
+      max-width: 680px;
+      margin-top: 30px;
+    }
+
+    .skeleton span {
+      height: 12px;
+      border-radius: 6px;
+      background: linear-gradient(90deg, var(--chip) 0%, var(--chip-hover) 45%, var(--chip) 100%);
+      background-size: 200% 100%;
+      animation: shimmer 1.7s infinite linear;
+    }
+
+    .skeleton span:nth-child(1) { width: 72%; }
+    .skeleton span:nth-child(2) { width: 94%; }
+    .skeleton span:nth-child(3) { width: 86%; }
+    .skeleton span:nth-child(4) { width: 91%; }
+    .skeleton span:nth-child(5) { width: 64%; }
+    .skeleton span:nth-child(6) { width: 88%; }
+    .skeleton span:nth-child(7) { width: 45%; }
+
+    @keyframes shimmer {
+      from { background-position: 200% 0; }
+      to { background-position: -200% 0; }
+    }
+
+    .error-actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 21px;
+    }
+
+    /* ============================================================
+       9. Markdown 排版
+       ============================================================ */
+    .prose {
+      max-width: 810px;
+      margin-inline: auto;
+      color: var(--text-soft);
+      font-size: 0.98rem;
+      line-height: 1.92;
+      overflow-wrap: break-word;
+    }
+
+    .prose > :first-child {
+      margin-top: 0;
+    }
+
+    .prose > :last-child {
+      margin-bottom: 0;
+    }
+
+    .prose h1,
+    .prose h2,
+    .prose h3,
+    .prose h4,
+    .prose h5,
+    .prose h6 {
+      margin: 1.75em 0 0.62em;
+      color: var(--text);
+      font-weight: 750;
+      line-height: 1.45;
+      letter-spacing: -0.01em;
+    }
+
+    .prose h1 { font-size: 1.5rem; }
+    .prose h2 {
+      position: relative;
+      padding-left: 14px;
+      font-size: 1.24rem;
+    }
+
+    .prose h2::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0.28em;
+      bottom: 0.28em;
+      width: 3px;
+      border-radius: 3px;
+      background: linear-gradient(var(--accent), var(--magenta));
+    }
+
+    .prose h3 {
+      font-size: 1.08rem;
+      color: var(--text);
+    }
+
+    .prose h4 {
+      font-size: 1rem;
+    }
+
+    .prose p {
+      margin: 0 0 1.05em;
+    }
+
+    .prose strong {
+      color: var(--text);
+      font-weight: 720;
+    }
+
+    .prose em {
+      color: var(--text-soft);
+    }
+
+    .prose ul,
+    .prose ol {
+      margin: 0.35em 0 1.15em;
+      padding-left: 1.4em;
+    }
+
+    .prose li {
+      margin: 0.36em 0;
+      padding-left: 0.15em;
+    }
+
+    .prose li::marker {
+      color: var(--accent);
+    }
+
+    .prose blockquote {
+      margin: 1.25em 0;
+      padding: 12px 18px;
+      border-left: 3px solid var(--accent);
+      border-radius: 0 12px 12px 0;
+      background: var(--chip);
+      color: var(--text-soft);
+    }
+
+    .prose blockquote p:last-child {
+      margin-bottom: 0;
+    }
+
+    .prose code {
+      padding: 2px 6px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--chip);
+      font-family: var(--font-mono);
+      font-size: 0.87em;
+    }
+
+    .prose pre {
+      margin: 1.25em 0;
+      padding: 16px 18px;
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--inset);
+    }
+
+    .prose pre code {
+      padding: 0;
+      border: 0;
+      background: none;
+      color: var(--text-soft);
+      font-size: 0.84rem;
+      line-height: 1.7;
+    }
+
+    .prose hr {
+      height: 1px;
+      margin: 2em 0;
+      border: 0;
+      background: var(--border);
+    }
+
+    .prose a {
+      color: var(--accent);
+      text-decoration: underline;
+    }
+
+    .prose .table-wrap {
+      margin: 1.25em 0;
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+    }
+
+    .prose table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+    }
+
+    .prose th,
+    .prose td {
+      padding: 9px 12px;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    .prose th {
+      background: var(--chip);
+      color: var(--text);
+      font-weight: 680;
+      white-space: nowrap;
+    }
+
+    .prose tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .result-footnote {
+      display: flex;
+      align-items: flex-start;
+      gap: 9px;
+      max-width: 810px;
+      margin: 28px auto 0;
+      padding-top: 18px;
+      border-top: 1px dashed var(--border);
+      color: var(--muted);
+      font-size: 0.72rem;
+      line-height: 1.7;
+    }
+
+    /* ============================================================
+       10. 頁尾、行動版工具列、Toast
+       ============================================================ */
+    .site-footer {
+      max-width: var(--max-width);
+      margin: clamp(40px, 6vw, 64px) auto 0;
+      padding: 24px clamp(16px, 4vw, 40px) 42px;
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 0.77rem;
+      line-height: 1.7;
+      text-align: center;
+    }
+
+    .site-footer p {
+      margin: 4px 0;
+    }
+
+    .site-footer strong {
+      color: var(--text-soft);
+      font-weight: 650;
+    }
+
+    .site-footer .fineprint {
+      font-size: 0.7rem;
+      opacity: 0.82;
+    }
+
+    .mobile-dock {
+      display: none;
+    }
+
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: 28px;
+      z-index: 100;
+      max-width: calc(100vw - 32px);
+      padding: 11px 18px;
+      border: 1px solid var(--border-strong);
+      border-radius: 999px;
+      background: var(--card);
+      box-shadow: var(--shadow);
+      color: var(--text);
+      font-size: 0.81rem;
+      line-height: 1.4;
+      text-align: center;
+      opacity: 0;
+      pointer-events: none;
+      transform: translate(-50%, 14px);
+      transition: opacity 0.25s var(--ease), transform 0.25s var(--ease);
+    }
+
+    .toast.is-visible {
+      opacity: 1;
+      transform: translate(-50%, 0);
+    }
+
+    .toast.is-error {
+      border-color: color-mix(in srgb, var(--danger) 45%, transparent);
+      color: var(--danger);
+    }
+
+    /* ============================================================
+       11. 設定對話框
+       ============================================================ */
+    dialog.settings {
+      width: min(560px, calc(100vw - 32px));
+      max-height: calc(100dvh - 48px);
+      padding: 0;
+      overflow: auto;
+      border: 1px solid var(--border);
+      border-radius: 22px;
+      background: var(--card);
+      box-shadow: 0 40px 100px -20px rgba(0, 0, 0, 0.65);
+      color: var(--text);
+    }
+
+    dialog.settings::backdrop {
+      background: rgba(2, 6, 23, 0.62);
+      -webkit-backdrop-filter: blur(8px);
+      backdrop-filter: blur(8px);
+    }
+
+    dialog.settings[open] {
+      animation: dialogIn 0.24s var(--ease);
+    }
+
+    @keyframes dialogIn {
+      from { opacity: 0; transform: translateY(10px) scale(0.985); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    .dialog-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 22px 24px 0;
+    }
+
+    .dialog-head h2 {
+      margin: 0;
+      font-size: 1.12rem;
+      font-weight: 750;
+    }
+
+    .dialog-head p {
+      margin: 3px 0 0;
+      color: var(--muted);
+      font-size: 0.76rem;
+    }
+
+    .settings-body {
+      padding: 4px 24px 24px;
+    }
+
+    .setting-block {
+      padding: 19px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .setting-block:last-child {
+      padding-bottom: 0;
+      border-bottom: 0;
+    }
+
+    .setting-block h3 {
+      margin: 0 0 11px;
+      font-size: 0.85rem;
+      font-weight: 680;
+      letter-spacing: 0.02em;
+    }
+
+    .segmented {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 4px;
+      padding: 4px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--inset);
+    }
+
+    .segmented button {
+      min-height: 44px;
+      padding: 0 8px;
+      border: 1px solid transparent;
+      border-radius: 9px;
+      background: transparent;
+      color: var(--muted);
+      font-size: 0.83rem;
+      font-weight: 550;
+      cursor: pointer;
+      transition: background-color 0.18s var(--ease), color 0.18s var(--ease),
+        border-color 0.18s var(--ease), box-shadow 0.18s var(--ease);
+    }
+
+    .segmented button:hover {
+      color: var(--text);
+    }
+
+    .segmented button[aria-pressed="true"] {
+      border-color: var(--border);
+      background: var(--card);
+      box-shadow: 0 4px 12px -6px rgba(0, 0, 0, 0.35);
+      color: var(--text);
+      font-weight: 680;
+    }
+
+    .key-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      margin: 0 0 10px;
+      color: var(--muted);
+      font-size: 0.75rem;
+    }
+
+    .key-status::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--muted);
+    }
+
+    .key-status.is-set {
+      color: var(--success);
+    }
+
+    .key-status.is-set::before {
+      background: var(--success);
+      box-shadow: 0 0 8px currentColor;
+    }
+
+    .key-field {
+      display: flex;
+      gap: 8px;
+    }
+
+    .key-field input {
+      flex: 1;
+      min-width: 0;
+      min-height: 46px;
+      padding: 0 14px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--inset);
+      color: var(--text);
+      font-size: 0.88rem;
+      letter-spacing: 0.03em;
+    }
+
+    .key-field input::placeholder {
+      color: var(--muted);
+      letter-spacing: 0;
+    }
+
+    .key-field input:focus {
+      border-color: transparent;
+      outline: 2px solid var(--accent);
+      outline-offset: 1px;
+    }
+
+    .hint {
+      margin: 10px 0 0;
+      color: var(--muted);
+      font-size: 0.72rem;
+      line-height: 1.7;
+    }
+
+    .hint a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    .hint a:hover {
+      text-decoration: underline;
+    }
+
+    .setting-actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 9px;
+      margin-top: 18px;
+    }
+
+    /* ============================================================
+       12. 響應式設計
+       ============================================================ */
+    @media (max-width: 1100px) {
+      .groups {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .group--life {
+        grid-column: 1 / -1;
+      }
+
+      .group--life .chips {
+        grid-template-columns: repeat(auto-fill, minmax(82px, 1fr));
+      }
+    }
+
+    @media (max-width: 1024px) {
+      .summary {
+        grid-template-columns: minmax(0, 1fr) auto;
+      }
+
+      .summary-head {
+        grid-column: 1 / -1;
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+
+      .summary-sub {
+        display: none;
+      }
+
+      .slots {
+        grid-column: 1;
+        grid-row: 2;
+      }
+
+      .summary-actions {
+        grid-column: 2;
+        grid-row: 2;
+      }
+    }
+
+    @media (max-width: 760px) {
+      body {
+        padding-bottom: calc(86px + env(safe-area-inset-bottom));
+      }
+
+      .topbar-inner {
+        min-height: 58px;
+        padding-block: 8px;
+      }
+
+      .brand-mark {
+        width: 36px;
+        height: 36px;
+        font-size: 18px;
+      }
+
+      .brand-text {
+        font-size: 0.87rem;
+      }
+
+      .hero {
+        padding-block: 38px 30px;
+      }
+
+      .hero-eyebrow {
+        letter-spacing: 0.1em;
+      }
+
+      .hero-title {
+        font-size: clamp(1.9rem, 8.4vw, 2.55rem);
+      }
+
+      .hero-subtitle {
+        margin-top: 14px;
+        font-size: 0.95rem;
+      }
+
+      .hero-steps {
+        margin-top: 21px;
+        gap: 6px;
+      }
+
+      .step-pill {
+        padding: 7px 11px;
+        font-size: 0.75rem;
+      }
+
+      .groups {
+        grid-template-columns: 1fr;
+        gap: 14px;
+      }
+
+      .group--life {
+        grid-column: auto;
+      }
+
+      .group {
+        padding: 17px;
+      }
+
+      .summary {
+        grid-template-columns: 1fr;
+        gap: 15px;
+        padding: 17px;
+      }
+
+      .summary-head {
+        grid-column: auto;
+        grid-row: auto;
+        padding-bottom: 2px;
+      }
+
+      .slots {
+        grid-column: auto;
+        grid-row: auto;
+        gap: 8px;
+      }
+
+      .slot {
+        min-height: 62px;
+        padding: 9px 10px;
+      }
+
+      .slot-label {
+        font-size: 0.63rem;
+      }
+
+      .slot-value {
+        font-size: 0.86rem;
+      }
+
+      .summary-actions {
+        grid-column: auto;
+        grid-row: auto;
+        display: flex;
+        width: 100%;
+      }
+
+      .summary-actions .js-read {
+        flex: 1;
+        order: 3;
+      }
+
+      .summary-actions #randomBtn,
+      .summary-actions #clearBtn {
+        flex: 0 0 auto;
+      }
+
+      .result-head {
+        flex-wrap: wrap;
+        align-items: flex-start;
+      }
+
+      .result-tools {
+        width: 100%;
+        justify-content: space-between;
+      }
+
+      .result-body {
+        padding: 20px 17px;
+      }
+
+      .dialog-head {
+        padding: 20px 19px 0;
+      }
+
+      .settings-body {
+        padding: 2px 19px 20px;
+      }
+
+      .site-footer {
+        padding-bottom: 28px;
+      }
+
+      .mobile-dock {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 60;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+        border-top: 1px solid var(--border);
+        background: var(--header-bg);
+        box-shadow: 0 -20px 40px -24px rgba(0, 0, 0, 0.5);
+        -webkit-backdrop-filter: blur(20px) saturate(140%);
+        backdrop-filter: blur(20px) saturate(140%);
+      }
+
+      .dock-progress {
+        display: flex;
+        flex: 1;
+        flex-direction: column;
+        gap: 5px;
+        min-width: 0;
+      }
+
+      .dock-dots {
+        display: flex;
+        gap: 5px;
+      }
+
+      .dock-dots i {
+        width: 20px;
+        height: 4px;
+        border-radius: 2px;
+        background: var(--border-strong);
+        transition: background-color 0.2s var(--ease), box-shadow 0.2s var(--ease);
+      }
+
+      .dock-dots i.is-on {
+        background: var(--accent);
+        box-shadow: 0 0 8px var(--glow);
+      }
+
+      #dockLabel {
+        overflow: hidden;
+        color: var(--muted);
+        font-size: 0.68rem;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      #dockReadBtn {
+        min-width: 126px;
+        flex: 0 0 auto;
+      }
+
+      .toast {
+        bottom: calc(92px + env(safe-area-inset-bottom));
+      }
+    }
+
+    @media (max-width: 430px) {
+      .chips {
+        grid-template-columns: repeat(auto-fill, minmax(66px, 1fr));
+        gap: 7px;
+      }
+
+      .chip {
+        padding-inline: 4px;
+        font-size: 0.79rem;
+      }
+
+      .brand-text {
+        font-size: 0.8rem;
+      }
+
+      .brand-mark {
+        width: 33px;
+        height: 33px;
+        border-radius: 10px;
+        font-size: 17px;
+      }
+
+      .icon-btn {
+        width: 44px;
+        height: 44px;
+      }
+
+      .slots {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .slot {
+        min-width: 0;
+        padding-inline: 8px;
+      }
+
+      .slot-value {
+        font-size: 0.8rem;
+      }
+
+      .summary-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .summary-actions .js-read {
+        grid-column: 1 / -1;
+        order: 0;
+      }
+
+      .summary-actions #randomBtn,
+      .summary-actions #clearBtn {
+        width: 100%;
+      }
+
+      .result-icon {
+        width: 37px;
+        height: 37px;
+      }
+
+      .result-head h2 {
+        font-size: 0.94rem;
+      }
+
+      .error-actions .btn {
+        width: 100%;
+      }
+    }
+
+    @media (max-height: 520px) and (orientation: landscape) {
+      .hero {
+        padding-block: 24px 20px;
+      }
+
+      .hero-title {
+        font-size: clamp(1.55rem, 4.2vw, 2.1rem);
+      }
+
+      .hero-steps,
+      .hero-meta,
+      .hero-eyebrow {
+        display: none;
+      }
+
+      .hero-subtitle {
+        margin-top: 8px;
+      }
+
+      .group--support,
+      .group--life {
+        position: static;
+      }
+
+      body {
+        padding-bottom: 0;
+      }
+
+      .mobile-dock {
+        display: none;
+      }
+    }
+
+    @media (min-width: 1800px) {
+      .hero-title {
+        font-size: 3.9rem;
+      }
+
+      .chips {
+        grid-template-columns: repeat(auto-fill, minmax(82px, 1fr));
+        gap: 9px;
+      }
+
+      .group {
+        padding: 26px;
+      }
+    }
+
+    /* 降低動態偏好 */
+    @media (prefers-reduced-motion: reduce) {
+      html {
+        scroll-behavior: auto;
+      }
+
+      *,
+      *::before,
+      *::after {
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.001ms !important;
+      }
+
+      .loader-ring {
+        animation: spin 1.4s linear infinite !important;
+      }
+
+      .pulse-dot,
+      .idle-orb {
+        animation: none !important;
+      }
+    }
+  </style>
+<style id="v2-styles">
+    /* ===== v2 追加樣式（原版 CSS 完全未改動，只補新元素所需） ===== */
+    .result-tools { flex-wrap: wrap; gap: .4rem; justify-content: flex-end; }
+    .notice {
+      margin: 0 0 1rem; padding: .7rem .9rem; border-radius: .7rem;
+      background: rgba(245, 158, 11, .12);
+      border: 1px solid rgba(245, 158, 11, .38);
+      font-size: .9rem; line-height: 1.6;
+    }
+    .notice[hidden] { display: none; }
+    .mode-badge {
+      display: inline-block; margin-left: .4rem; padding: .1rem .45rem;
+      border-radius: 999px; font-size: .72rem; letter-spacing: .04em;
+      border: 1px solid currentColor; opacity: .85; vertical-align: middle;
+    }
+    .remember-row {
+      display: flex; gap: .55rem; align-items: flex-start;
+      font-size: .88rem; line-height: 1.55; margin: .35rem 0 .55rem; cursor: pointer;
+    }
+    .remember-row input { margin-top: .28rem; flex: none; }
+    .history-list { display: flex; flex-direction: column; gap: .6rem; }
+    .history-item {
+      border: 1px solid rgba(148, 163, 184, .32); border-radius: .7rem;
+      padding: .7rem .8rem;
+    }
+    .history-item h4 { margin: 0 0 .25rem; font-size: .95rem; }
+    .history-item p { margin: 0; font-size: .8rem; opacity: .72; }
+    .history-item .row { display: flex; gap: .4rem; margin-top: .55rem; flex-wrap: wrap; }
+    .history-empty { font-size: .9rem; opacity: .7; margin: 0; }
+    .kbd-note { font-size: .78rem; opacity: .65; margin: .5rem 0 0; }
+    .setting-block[hidden] { display: none; }
+    .followup { margin-top: 1.6rem; border-top: 1px solid rgba(148, 163, 184, .3); padding-top: 1.1rem; }
+    .followup[hidden] { display: none; }
+    .followup h3 { font-size: 1rem; margin: 0 0 .25rem; }
+    .followup .hint { font-size: .8rem; opacity: .72; margin: .2rem 0 .6rem; }
+    .followup-item {
+      margin: .75rem 0; padding: .7rem .85rem; border-radius: .7rem;
+      background: rgba(99, 102, 241, .08); border: 1px solid rgba(99, 102, 241, .18);
+    }
+    .followup-item .q { font-weight: 600; margin-bottom: .35rem; font-size: .93rem; }
+    .followup-item .a { font-size: .95rem; line-height: 1.75; }
+    .followup-item .a p { margin: .4rem 0; }
+    .followup-item .a[data-streaming="1"]::after {
+      content: "▍"; opacity: .6; animation: blink 1s steps(1) infinite;
+    }
+    .quota-chip {
+      border: 1px solid rgba(148, 163, 184, .45); background: transparent; color: inherit;
+      border-radius: 999px; padding: .34rem .72rem; font-size: .78rem; letter-spacing: .02em;
+      cursor: pointer; white-space: nowrap;
+    }
+    .quota-chip[hidden] { display: none; }
+    .quota-chip[data-state="low"] { border-color: #f59e0b; color: #f59e0b; }
+    .quota-chip[data-state="blocked"] { border-color: #ef4444; color: #ef4444; }
+    .gate {
+      position: fixed; inset: 0; z-index: 9998; display: flex; align-items: center; justify-content: center;
+      padding: 1.2rem; background: rgba(2, 6, 23, .78); backdrop-filter: blur(3px);
+    }
+    .gate[hidden] { display: none; }
+    .gate-card {
+      max-width: 420px; width: 100%; background: #fff; color: #0f172a; border-radius: 1rem;
+      padding: 1.4rem 1.3rem; text-align: center; box-shadow: 0 24px 60px rgba(0, 0, 0, .35);
+    }
+    [data-theme="dark"] .gate-card { background: #111827; color: #e5e7eb; }
+    .gate-card h3 { margin: 0 0 .5rem; font-size: 1.05rem; }
+    .gate-card .hint { font-size: .82rem; opacity: .8; margin: .35rem 0; }
+    #gateSlot { margin: 1rem 0 .6rem; display: flex; justify-content: center; }
+    .gate-name {
+      width: 100%; box-sizing: border-box; padding: .6rem .8rem; border-radius: .6rem;
+      border: 1px solid rgba(148, 163, 184, .55); background: transparent; color: inherit;
+      font-size: .95rem; margin-top: .9rem;
+    }
+    .gate-name:focus { outline: 2px solid #6366f1; outline-offset: 1px; }
+    #gateRetryBtn { margin-top: .4rem; }
+    #gateRetryBtn[hidden] { display: none; }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main">跳至主要內容</a>
+  <div class="aura" aria-hidden="true"><span></span></div>
+
+  <header class="topbar">
+    <div class="topbar-inner shell">
+      <a class="brand" href="#main" aria-label="紫微斗數 AI 解牌，回到頁首">
+        <span class="brand-mark" aria-hidden="true">🔮</span>
+        <span class="brand-text">紫微斗數 <span class="brand-ai">AI</span> 解牌</span>
+      </a>
+      <div class="topbar-actions">
+        <button class="quota-chip" id="quotaChip" type="button" hidden>本週 — 次</button>
+        <button class="icon-btn" id="themeToggle" type="button" aria-label="切換為淺色主題" title="切換主題">
+          <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="4"></circle>
+            <path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"></path>
+          </svg>
+          <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          </svg>
+        </button>
+        <button class="icon-btn" id="settingsBtn" type="button" aria-label="開啟設定" title="設定">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M4 6h16M4 12h16M4 18h16"></path>
+            <circle cx="9" cy="6" r="2" fill="currentColor" stroke="none"></circle>
+            <circle cx="15" cy="12" r="2" fill="currentColor" stroke="none"></circle>
+            <circle cx="8" cy="18" r="2" fill="currentColor" stroke="none"></circle>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main id="main" class="shell">
+    <section class="hero" aria-labelledby="pageTitle">
+      <p class="hero-eyebrow"><span class="pulse-dot" aria-hidden="true"></span>Zi Wei Dou Shu · AI Card Reading</p>
+      <h1 class="hero-title" id="pageTitle">🔮 紫微斗數 <span class="gradient-text">AI 解牌</span></h1>
+      <p class="hero-subtitle">結合紫微斗數牌卡與 AI 的智慧解讀</p>
+
+      <div class="hero-steps" aria-label="使用步驟">
+        <span class="step-pill"><b>01</b>選擇主星</span>
+        <span class="step-pill"><b>02</b>挑選輔星</span>
+        <span class="step-pill"><b>03</b>感應長生</span>
+      </div>
+      <p class="hero-meta">14 主星 · 24 雙星 + 空宮 · 22 輔星 · 12 長生</p>
+    </section>
+
+    <section class="groups" aria-label="牌卡選擇區">
+      <!-- 主星牌組 -->
+      <article class="group glass" aria-labelledby="groupMainTitle">
+        <div class="group-head">
+          <span class="group-number" aria-hidden="true">01</span>
+          <div class="group-heading">
+            <h2 class="group-title" id="groupMainTitle">主星牌組<span class="group-count">14 + 25</span></h2>
+            <p class="group-sub">選擇一張核心能量</p>
+          </div>
+          <button class="reset-btn" type="button" data-reset="main" aria-label="重設主星選擇" title="重設主星選擇">↺</button>
+        </div>
+
+        <div class="subgroup">
+          <div class="subgroup-label">14 主星</div>
+          <div class="chips" id="mainStars" role="group" aria-label="十四主星"></div>
+        </div>
+        <div class="subgroup">
+          <div class="subgroup-label">24 雙星組合 · 含空宮</div>
+          <div class="chips" id="dualStars" role="group" aria-label="二十四雙星組合與空宮"></div>
+        </div>
+        <p class="group-foot">再次點擊已選卡片即可取消。主星代表你的核心氣質與生命主軸。</p>
+      </article>
+
+      <!-- 輔星牌組 -->
+      <article class="group glass group--support" aria-labelledby="groupSupportTitle">
+        <div class="group-head">
+          <span class="group-number" aria-hidden="true">02</span>
+          <div class="group-heading">
+            <h2 class="group-title" id="groupSupportTitle">輔星牌組<span class="group-count">22</span></h2>
+            <p class="group-sub">挑選一顆助力或課題</p>
+          </div>
+          <button class="reset-btn" type="button" data-reset="support" aria-label="重設輔星選擇" title="重設輔星選擇">↺</button>
+        </div>
+        <div class="chips" id="supportCards" role="group" aria-label="二十一顆輔星"></div>
+        <p class="group-foot">輔星描述環境中的助力、才華與挑戰，補足主星的能量細節。</p>
+      </article>
+
+      <!-- 十二長生 -->
+      <article class="group glass group--life" aria-labelledby="groupLifeTitle">
+        <div class="group-head">
+          <span class="group-number" aria-hidden="true">03</span>
+          <div class="group-heading">
+            <h2 class="group-title" id="groupLifeTitle">十二長生<span class="group-count">12</span></h2>
+            <p class="group-sub">感應當下的生命節奏</p>
+          </div>
+          <button class="reset-btn" type="button" data-reset="life" aria-label="重設長生選擇" title="重設長生選擇">↺</button>
+        </div>
+        <div class="chips" id="lifeStages" role="group" aria-label="十二長生"></div>
+        <p class="group-foot">長生象徵事情所處的階段，從萌芽、茁壯到沉澱與重生。</p>
+      </article>
+    </section>
+
+    <!-- 已選摘要 -->
+    <section class="summary glass" id="summary" aria-labelledby="summaryTitle">
+      <div class="summary-head">
+        <h2 class="summary-title" id="summaryTitle">已選牌組</h2>
+        <div class="progress" aria-hidden="true">
+          <span class="progress-count" id="progressCount">0</span><span>/ 3</span>
+        </div>
+        <p class="summary-sub" id="summarySub">三張牌，構成你此刻的星象縮影</p>
+      </div>
+
+      <div class="slots" id="slots" aria-live="polite">
+        <div class="slot" data-slot="main">
+          <span class="slot-label"><span class="dot" aria-hidden="true"></span>已選主星</span>
+          <span class="slot-value" data-value>尚未選擇</span>
+        </div>
+        <div class="slot" data-slot="support">
+          <span class="slot-label"><span class="dot" aria-hidden="true"></span>已選輔星</span>
+          <span class="slot-value" data-value>尚未選擇</span>
+        </div>
+        <div class="slot" data-slot="life">
+          <span class="slot-label"><span class="dot" aria-hidden="true"></span>已選長生</span>
+          <span class="slot-value" data-value>尚未選擇</span>
+        </div>
+      </div>
+
+      <div class="summary-actions">
+        <button class="btn btn-ghost" id="randomBtn" type="button" title="隨機抽出三張牌">
+          <span class="btn-icon" aria-hidden="true">✦</span>隨機抽牌
+        </button>
+        <button class="btn btn-ghost" id="clearBtn" type="button" aria-label="清除全部選擇" disabled>清除</button>
+        <button class="btn btn-primary js-read" id="readBtn" type="button" disabled>
+          <span class="btn-spinner" aria-hidden="true"></span>
+          <span class="btn-icon" aria-hidden="true">✧</span>
+          <span data-read-label>開始解讀</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- 解讀結果 -->
+    <section class="result glass" id="result" data-state="idle" aria-labelledby="resultTitle">
+      <div class="result-head">
+        <div class="result-heading">
+          <span class="result-icon" aria-hidden="true">✦</span>
+          <div>
+            <h2 id="resultTitle">AI 解讀結果</h2>
+            <p class="result-sub">DeepSeek · <span id="modelNameLabel">deepseek-flash</span></p>
+          </div>
+        </div>
+        <div class="result-tools">
+          <span class="status" id="resultStatus" data-tone="idle" aria-live="polite">
+            <i aria-hidden="true"></i><span id="resultStatusText">待解讀</span>
+          </span>
+          <button class="btn btn-ghost btn-sm" id="historyBtn" type="button" disabled>歷史</button>
+          <button class="btn btn-ghost btn-sm" id="copyBtn" type="button" disabled>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="9" y="9" width="12" height="12" rx="2"></rect>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+            複製
+          </button>
+          <button class="btn btn-ghost btn-sm" id="downloadBtn" type="button" disabled>下載 .md</button>
+        </div>
+      </div>
+
+      <div class="result-body" id="resultBody">
+        <!-- 待機 -->
+        <div class="state state-idle" data-state="idle">
+          <div class="idle-orb" aria-hidden="true">🔮</div>
+          <h3>三張牌，一段專屬訊息</h3>
+          <p>選好主星、輔星與十二長生後，按下「開始解讀」，讓 AI 為你整理此刻的星曜能量。</p>
+          <div class="idle-tags" aria-hidden="true">
+            <span>核心能量</span><span>感情運勢</span><span>事業運勢</span><span>財運分析</span><span>未來三個月</span><span>行動建議</span>
+          </div>
+        </div>
+
+        <!-- 載入 -->
+        <div class="state state-loading" data-state="loading" hidden>
+          <div class="loader-ring" aria-hidden="true"></div>
+          <p class="loading-title" id="loadingTitle">正在解讀星曜能量…</p>
+          <p class="loading-sub">約需 10–30 秒，請稍候</p>
+          <div class="skeleton" aria-hidden="true">
+            <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+          </div>
+        </div>
+
+        <!-- 錯誤 -->
+        <div class="state state-error" data-state="error" hidden>
+          <div class="error-orb" aria-hidden="true">⚠️</div>
+          <h3>解讀暫時中斷</h3>
+          <p id="errorMessage" role="alert">發生了未預期的錯誤。</p>
+          <div class="error-actions">
+            <button class="btn btn-primary" id="retryBtn" type="button">重新嘗試</button>
+            <button class="btn btn-ghost" id="errorSettingsBtn" type="button">檢查 API 金鑰</button>
+          </div>
+        </div>
+
+        <!-- 成功 -->
+        <div class="state state-success" data-state="success" hidden>
+          <p class="notice" id="truncationNote" role="status" hidden></p>
+          <article class="prose" id="markdownOut"></article>
+
+          <!-- v3：追問 -->
+          <div class="followup" id="followupBox" hidden>
+            <h3>追問</h3>
+            <p class="hint">只回答你問嘅問題，唔會重寫上面嘅解讀；長度按難度調整（最多 3000 字）。每次追問計 1 次額度。</p>
+            <p class="hint">⚠️ 只限紫微斗數／牌卡相關問題（<b>唔答程式碼、數學題、功課解題</b>）。</p>
+            <div id="followupList"></div>
+            <div class="key-field">
+              <input id="followupInput" type="text" maxlength="300" placeholder="想追問什麼？（例：那我今年適合轉工嗎？）" aria-label="追問問題" />
+              <button class="icon-btn" id="followupBtn" type="button" aria-label="送出追問" title="送出追問">→</button>
+            </div>
+            <p class="hint" id="followupStatus"></p>
+          </div>
+          <div class="result-footnote">
+            <span aria-hidden="true">※</span>
+            <span>本解讀由 AI 生成，僅供參考與自我探索，不構成醫療、法律或投資建議。請依自身情況做出判斷。</span>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <p><strong>紫微斗數 AI 解牌</strong> · 以牌卡為媒介的自我探索工具</p>
+    <p class="fineprint">星曜是提醒，不是命令。願你在每一次選擇裡，都更靠近真實的自己。</p>
+    <p class="fineprint">另一個版本：<a href="./byok.html">自備金鑰版（BYOK）</a></p>
+    <p class="fineprint" id="versionLine">改進版 v2.0.0 · 原始設計 cy55088c-hue/ziwei（2026-11-11 快照）</p>
+  </footer>
+
+  <!-- 行動版底部工具列 -->
+  <div class="mobile-dock" role="region" aria-label="快速解讀">
+    <div class="dock-progress">
+      <div class="dock-dots" id="dockDots" aria-hidden="true"><i></i><i></i><i></i></div>
+      <span id="dockLabel">已選 0 / 3</span>
+    </div>
+    <button class="btn btn-primary js-read" id="dockReadBtn" type="button" disabled>
+      <span class="btn-spinner" aria-hidden="true"></span>
+      <span data-read-label>開始解讀</span>
+    </button>
+  </div>
+
+  <!-- 設定對話框 -->
+  <dialog class="settings" id="settingsDialog" aria-labelledby="settingsTitle">
+    <div class="dialog-head">
+      <div>
+        <h2 id="settingsTitle">設定</h2>
+        <p>外觀偏好與 DeepSeek 連線</p>
+      </div>
+      <button class="icon-btn" id="closeSettingsBtn" type="button" aria-label="關閉設定">✕</button>
+    </div>
+
+    <div class="settings-body">
+      <section class="setting-block">
+        <h3>外觀主題</h3>
+        <div class="segmented" role="group" aria-label="外觀主題">
+          <button type="button" data-theme-pref="auto">跟隨系統</button>
+          <button type="button" data-theme-pref="light">淺色</button>
+          <button type="button" data-theme-pref="dark">深色</button>
+        </div>
+        <p class="hint">「跟隨系統」會自動回應裝置的深色或淺色設定。</p>
+      </section>
+
+      <section class="setting-block">
+        <h3>DeepSeek API 金鑰</h3>
+        <p class="key-status" id="keyStatus">尚未設定 API 金鑰</p>
+        <p class="hint" id="connectionMode">連線模式：自備金鑰（只存在你的瀏覽器）</p>
+        <div class="key-field">
+          <input id="apiKeyInput" type="password" autocomplete="off" spellcheck="false" placeholder="sk-..." aria-label="DeepSeek API 金鑰" />
+          <button class="icon-btn" id="toggleKeyBtn" type="button" aria-label="顯示金鑰" title="顯示或隱藏金鑰">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"></path>
+              <circle cx="12" cy="12" r="2.6"></circle>
+            </svg>
+          </button>
+        </div>
+        <label class="remember-row">
+          <input type="checkbox" id="rememberKey" />
+          <span>記住金鑰（勾選＝存入 localStorage，關掉瀏覽器仍保留）<br />
+            <b>不勾＝只存本次瀏覽階段（sessionStorage），關閉分頁即失效</b></span>
+        </label>
+        <p class="hint">金鑰只會存在你的瀏覽器，並且只會傳送給 <code>api.deepseek.com</code> 或你自己設定的代理。本頁已加 CSP 限制連線目的地；其他網域收不到你的金鑰。若使用公用裝置，離開前請按「清除金鑰」。</p>
+        <p class="hint"><a href="https://platform.deepseek.com/api_keys" target="_blank" rel="noopener noreferrer">前往 DeepSeek 取得 API 金鑰 ↗</a></p>
+        <div class="setting-actions">
+          <button class="btn btn-ghost" id="clearKeyBtn" type="button">清除金鑰</button>
+          <button class="btn btn-primary" id="saveSettingsBtn" type="button">儲存設定</button>
+        </div>
+      </section>
+
+      <!-- v2.2：代理模式的每週配額與解鎖碼 -->
+      <section class="setting-block" id="quotaBlock" hidden>
+        <h3>本週使用次數</h3>
+        <p class="hint" id="quotaStatus">讀取中…</p>
+        <div class="key-field">
+          <input id="unlockInput" type="password" autocomplete="off" spellcheck="false" placeholder="解鎖碼" aria-label="解鎖碼" />
+          <button class="icon-btn" id="unlockBtn" type="button" aria-label="解鎖更多次數" title="解鎖 +10 次">→</button>
+        </div>
+        <div id="turnstileSlot"></div>
+        <p class="hint">用完免費次數時輸入解鎖碼，可再加 10 次（每週一重置）。</p>
+      </section>
+    </div>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    (function () {
+      "use strict";
+
+      /* ============================================================
+         1. 設定與牌卡資料
+         ============================================================ */
+
+      /* ===== v2 設定（三個金鑰模式，優先次序：代理 > 內建 > 自備） =====
+         ⚠️ 安全事實：這是靜態網頁。任何「內嵌」的金鑰，只要頁面放在公開網址，
+            任何人都可以用 F12／Ctrl+U 取走，並用你的額度消費。
+            唯一真正安全的公開做法＝代理（PROXY_URL），金鑰留在伺服器。
+            內嵌金鑰只可以放「只在自己電腦開（file:// 或 localhost）」的私人副本。 */
+      const CONFIG = Object.freeze({
+        PROXY_URL: "https://ziwe-kevin.www-wongkevin404.workers.dev",
+        INLINE_API_KEY: "",     // 只放私人副本（file:// 本機）；填入後公開就等於公開金鑰
+        MODEL: "deepseek-flash",   // v2.1：deepseek-chat 係舊名（官方公告 2026-07-24 停用）
+        MAX_TOKENS: 3200,       // v2：2400 → 3200，減少七段被截斷
+        TEMPERATURE: 0.85,      // 只在 thinking 關閉時有效
+        THINKING: "disabled",   // v2.1：思考模式預設開啟會令 temperature 失效、變慢、變貴
+        TURNSTILE_SITE_KEY: "0x4AAAAAAGA8l3vddzBzeEAu", // Cloudflare Turnstile Site Key（公開資料）
+        FOLLOWUP_MAX_CHARS: 3000,      // 追問答案上限（中文字）
+        FOLLOWUP_CONTEXT_MAX: 30000,   // 送給 AI 的原文上限（字元），超出會截斷
+        FOLLOWUP_BLOCK_TOPICS: true,   // 拒答程式／數學／功課類問題
+        STREAM: true,           // v2：串流輸出（逐字顯示）
+        APP_VERSION: "3.0.0",
+        HISTORY_LIMIT: 20
+      });
+
+      const API_ENDPOINT = "https://api.deepseek.com/chat/completions";
+      const API_MODEL = CONFIG.MODEL;
+      const REQUEST_TIMEOUT_MS = 90000;
+
+      const STORAGE_KEYS = Object.freeze({
+        theme: "zwds.theme",
+        selection: "zwds.selection",
+        apiKey: "zwds.apiKey",
+        sessionKey: "zwds.apiKey.session",
+        history: "zwds.history"
+      });
+
+      const MAIN_STARS = Object.freeze([
+        "紫微", "天機", "太陽", "武曲", "天同", "廉貞", "天府",
+        "太陰", "貪狼", "巨門", "天相", "天梁", "七殺", "破軍"
+      ]);
+
+      const DUAL_STARS = Object.freeze([
+        "紫微天府", "紫微天相", "紫微破軍", "紫微七殺", "紫微貪狼",
+        "廉貞天府", "廉貞天相", "廉貞破軍", "廉貞七殺", "廉貞貪狼",
+        "武曲天府", "武曲天相", "武曲破軍", "武曲七殺", "武曲貪狼",
+        "天機巨門", "天機太陰", "天機天梁",
+        "巨門太陽",
+        "太陽太陰", "太陽天梁",
+        "太陰天同",
+        "天同天梁", "天同巨門",
+        "空宮"
+      ]);
+
+      const SUPPORT_CARDS = Object.freeze([
+        "左輔", "右弼", "文昌", "文曲", "天魁", "天鉞", "擎羊",
+        "陀羅", "火星", "鈴星", "地空", "地劫", "天刑", "陰煞",
+        "祿存", "紅鸞", "天喜", "化祿", "化權", "化科", "化忌",
+        "天馬"
+      ]);
+
+      const LIFE_STAGES = Object.freeze([
+        "長生", "沐浴", "冠帶", "臨官", "帝旺", "衰",
+        "病", "死", "墓", "絕", "胎", "養"
+      ]);
+
+      const KINDS = Object.freeze(["main", "support", "life"]);
+      const ALL_MAIN_CARDS = Object.freeze([...MAIN_STARS, ...DUAL_STARS]);
+      const VALID_CARDS = Object.freeze({
+        main: ALL_MAIN_CARDS,
+        support: SUPPORT_CARDS,
+        life: LIFE_STAGES
+      });
+
+      const LOADING_MESSAGES = Object.freeze([
+        "正在排列星曜…",
+        "正在感應主星能量…",
+        "正在整合輔星訊息…",
+        "正在編織十二長生的節奏…",
+        "正在撰寫你的專屬解讀…"
+      ]);
+
+      /* ============================================================
+         2. 狀態與 DOM 快取
+         ============================================================ */
+
+      const state = {
+        selection: { main: null, support: null, life: null },
+        themePref: "auto",
+        isReading: false,
+        lastMarkdown: "",
+        controller: null,
+        loadingTimer: null,
+        toastTimer: null,
+        themeTimer: null,
+        lastErrorCode: "",
+        followingUp: false,
+        followups: [],
+        readingSelection: null,
+        currentHistoryAt: 0
+      };
+
+      const $ = (selector, root = document) => root.querySelector(selector);
+      const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
+
+      const els = {
+        root: document.documentElement,
+        themeColorMeta: $("#themeColorMeta"),
+        themeToggle: $("#themeToggle"),
+        settingsBtn: $("#settingsBtn"),
+        groups: $(".groups"),
+        mainStars: $("#mainStars"),
+        dualStars: $("#dualStars"),
+        supportCards: $("#supportCards"),
+        lifeStages: $("#lifeStages"),
+        summary: $("#summary"),
+        summarySub: $("#summarySub"),
+        progressCount: $("#progressCount"),
+        slots: $("#slots"),
+        randomBtn: $("#randomBtn"),
+        clearBtn: $("#clearBtn"),
+        readBtn: $("#readBtn"),
+        dockReadBtn: $("#dockReadBtn"),
+        dockDots: $("#dockDots"),
+        dockLabel: $("#dockLabel"),
+        result: $("#result"),
+        resultBody: $("#resultBody"),
+        resultStatus: $("#resultStatus"),
+        resultStatusText: $("#resultStatusText"),
+        copyBtn: $("#copyBtn"),
+        markdownOut: $("#markdownOut"),
+        loadingTitle: $("#loadingTitle"),
+        errorMessage: $("#errorMessage"),
+        retryBtn: $("#retryBtn"),
+        errorSettingsBtn: $("#errorSettingsBtn"),
+        toast: $("#toast"),
+        settingsDialog: $("#settingsDialog"),
+        closeSettingsBtn: $("#closeSettingsBtn"),
+        apiKeyInput: $("#apiKeyInput"),
+        keyStatus: $("#keyStatus"),
+        toggleKeyBtn: $("#toggleKeyBtn"),
+        clearKeyBtn: $("#clearKeyBtn"),
+        saveSettingsBtn: $("#saveSettingsBtn")
+      };
+
+      /* ============================================================
+         3. 小工具
+         ============================================================ */
+
+      const selectedCount = () => KINDS.filter((kind) => Boolean(state.selection[kind])).length;
+      const isComplete = () => selectedCount() === 3;
+      const prefersReducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+      function randomItem(items) {
+        return items[Math.floor(Math.random() * items.length)];
+      }
+
+      function readStorage(key) {
+        try {
+          return window.localStorage.getItem(key);
+        } catch (error) {
+          return null;
+        }
+      }
+
+      function writeStorage(key, value) {
+        try {
+          window.localStorage.setItem(key, value);
+        } catch (error) {
+          /* 私密模式或儲存空間不足時，靜默忽略。 */
+        }
+      }
+
+      function removeStorage(key) {
+        try {
+          window.localStorage.removeItem(key);
+        } catch (error) {
+          /* 忽略 */
+        }
+      }
+
+      function readSession(key) {
+        try {
+          return window.sessionStorage.getItem(key);
+        } catch (error) {
+          return null;
+        }
+      }
+
+      function writeSession(key, value) {
+        try {
+          window.sessionStorage.setItem(key, value);
+        } catch (error) {
+          /* 私密模式時靜默忽略 */
+        }
+      }
+
+      function removeSession(key) {
+        try {
+          window.sessionStorage.removeItem(key);
+        } catch (error) {
+          /* 忽略 */
+        }
+      }
+
+      function getCustomApiKey() {
+        return (readSession(STORAGE_KEYS.sessionKey) || readStorage(STORAGE_KEYS.apiKey) || "").trim();
+      }
+
+      function keyMode() {
+        if (CONFIG.PROXY_URL) return "proxy";
+        if (CONFIG.INLINE_API_KEY) return "inline";
+        return "manual";
+      }
+
+      function maskKey(value) {
+        const text = String(value || "");
+        if (text.length <= 8) return "****";
+        return text.slice(0, 4) + "…" + text.slice(-4);
+      }
+
+      function getApiKey() {
+        const mode = keyMode();
+        if (mode === "proxy") return "proxy";
+        if (mode === "inline") return CONFIG.INLINE_API_KEY.trim();
+        return getCustomApiKey();
+      }
+
+      function scrollToResult() {
+        window.requestAnimationFrame(() => {
+          els.result.scrollIntoView({
+            behavior: prefersReducedMotion() ? "auto" : "smooth",
+            block: "start"
+          });
+        });
+      }
+
+      /* ============================================================
+         4. 主題切換
+         ============================================================ */
+
+      const darkModeQuery = window.matchMedia("(prefers-color-scheme: dark)");
+
+      function getThemePreference() {
+        const saved = readStorage(STORAGE_KEYS.theme);
+        return ["auto", "light", "dark"].includes(saved) ? saved : "auto";
+      }
+
+      function resolveTheme(preference) {
+        if (preference === "auto") return darkModeQuery.matches ? "dark" : "light";
+        return preference;
+      }
+
+      function refreshThemeControls() {
+        const resolved = resolveTheme(state.themePref);
+        els.themeToggle.setAttribute(
+          "aria-label",
+          resolved === "dark" ? "切換為淺色主題" : "切換為深色主題"
+        );
+        els.themeToggle.title = resolved === "dark" ? "切換為淺色主題" : "切換為深色主題";
+
+        $$("[data-theme-pref]").forEach((button) => {
+          button.setAttribute("aria-pressed", String(button.dataset.themePref === state.themePref));
+        });
+      }
+
+      function applyTheme(preference, options = {}) {
+        const { persist = true, animate = false } = options;
+        const normalized = ["auto", "light", "dark"].includes(preference) ? preference : "auto";
+        const resolved = resolveTheme(normalized);
+
+        state.themePref = normalized;
+        els.root.dataset.theme = resolved;
+        els.root.dataset.themePref = normalized;
+
+        if (persist) writeStorage(STORAGE_KEYS.theme, normalized);
+
+        if (animate) {
+          els.root.classList.add("theme-changing");
+          window.clearTimeout(state.themeTimer);
+          state.themeTimer = window.setTimeout(() => {
+            els.root.classList.remove("theme-changing");
+          }, 420);
+        }
+
+        if (els.themeColorMeta) {
+          els.themeColorMeta.content = resolved === "dark" ? "#0f172a" : "#f8fafc";
+        }
+
+        refreshThemeControls();
+      }
+
+      /* ============================================================
+         5. 牌卡渲染與選擇
+         ============================================================ */
+
+      function createChip(name, kind) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "chip";
+        button.dataset.name = name;
+        button.dataset.kind = kind;
+        button.setAttribute("aria-pressed", "false");
+        button.textContent = name;
+        return button;
+      }
+
+      function renderCards(container, names, kind) {
+        const fragment = document.createDocumentFragment();
+        names.forEach((name) => fragment.appendChild(createChip(name, kind)));
+        container.appendChild(fragment);
+      }
+
+      function syncSelectionUI(kind) {
+        const selectedName = state.selection[kind];
+        $$('.chip[data-kind="' + kind + '"]').forEach((chip) => {
+          const active = chip.dataset.name === selectedName;
+          chip.classList.toggle("is-selected", active);
+          chip.setAttribute("aria-pressed", String(active));
+        });
+      }
+
+      function persistSelection() {
+        writeStorage(STORAGE_KEYS.selection, JSON.stringify(state.selection));
+      }
+
+      function restoreSelection() {
+        const raw = readStorage(STORAGE_KEYS.selection);
+        if (!raw) return;
+
+        try {
+          const saved = JSON.parse(raw);
+          KINDS.forEach((kind) => {
+            const value = saved && saved[kind];
+            if (typeof value === "string" && VALID_CARDS[kind].includes(value)) {
+              state.selection[kind] = value;
+            }
+          });
+        } catch (error) {
+          /* 忽略損壞的資料 */
+        }
+      }
+
+      function selectCard(kind, name) {
+        if (state.isReading) return;
+        if (!KINDS.includes(kind) || !VALID_CARDS[kind].includes(name)) return;
+
+        state.selection[kind] = state.selection[kind] === name ? null : name;
+        syncSelectionUI(kind);
+        persistSelection();
+        updateSummary({ animate: true });
+      }
+
+      function updateSummary(options = {}) {
+        const { animate = false } = options;
+        let count = 0;
+
+        KINDS.forEach((kind) => {
+          const selectedName = state.selection[kind];
+          const slot = $('.slot[data-slot="' + kind + '"]', els.slots);
+          if (!slot) return;
+
+          const valueEl = $("[data-value]", slot);
+          const filled = Boolean(selectedName);
+          if (filled) count += 1;
+
+          valueEl.textContent = selectedName || "尚未選擇";
+          slot.classList.toggle("is-filled", filled);
+
+          if (animate && filled) {
+            valueEl.classList.remove("pop");
+            void valueEl.offsetWidth;
+            valueEl.classList.add("pop");
+            valueEl.addEventListener(
+              "animationend",
+              () => valueEl.classList.remove("pop"),
+              { once: true }
+            );
+          }
+        });
+
+        els.progressCount.textContent = String(count);
+        els.summarySub.textContent = count === 3
+          ? "三張牌已就位，隨時可以開始解讀"
+          : "三張牌，構成你此刻的星象縮影";
+
+        const complete = count === 3;
+        els.readBtn.disabled = !complete || state.isReading;
+        els.dockReadBtn.disabled = !complete || state.isReading;
+        els.clearBtn.disabled = count === 0 || state.isReading;
+        els.randomBtn.disabled = state.isReading;
+        els.copyBtn.disabled = state.isReading || !state.lastMarkdown;
+
+        els.dockLabel.textContent = "已選 " + count + " / 3";
+        const dots = Array.from(els.dockDots.children);
+        dots.forEach((dot, index) => {
+          dot.classList.toggle("is-on", Boolean(state.selection[KINDS[index]]));
+        });
+
+        $$("[data-reset]").forEach((button) => {
+          button.disabled = !state.selection[button.dataset.reset];
+        });
+      }
+
+      function clearAllSelections() {
+        KINDS.forEach((kind) => {
+          state.selection[kind] = null;
+          syncSelectionUI(kind);
+        });
+        persistSelection();
+        updateSummary();
+        showToast("已清除所有選擇");
+      }
+
+      function resetGroup(kind) {
+        if (!state.selection[kind]) return;
+        state.selection[kind] = null;
+        syncSelectionUI(kind);
+        persistSelection();
+        updateSummary();
+        showToast("已重設此牌組");
+      }
+
+      function drawRandomCards() {
+        if (state.isReading) return;
+
+        state.selection.main = randomItem(ALL_MAIN_CARDS);
+        state.selection.support = randomItem(SUPPORT_CARDS);
+        state.selection.life = randomItem(LIFE_STAGES);
+
+        KINDS.forEach(syncSelectionUI);
+        persistSelection();
+        updateSummary({ animate: true });
+
+        $$(".chip.is-selected").forEach((chip) => {
+          chip.classList.remove("is-flash");
+          void chip.offsetWidth;
+          chip.classList.add("is-flash");
+          window.setTimeout(() => chip.classList.remove("is-flash"), 700);
+        });
+
+        showToast("已為你隨機抽出三張牌");
+      }
+
+      function setReadingUI(busy) {
+        state.isReading = busy;
+        els.readBtn.classList.toggle("is-loading", busy);
+        els.dockReadBtn.classList.toggle("is-loading", busy);
+        $$("[data-read-label]").forEach((label) => {
+          label.textContent = busy ? "解讀中…" : "開始解讀";
+        });
+
+        els.randomBtn.disabled = busy;
+        els.readBtn.disabled = busy || !isComplete();
+        els.dockReadBtn.disabled = busy || !isComplete();
+        els.clearBtn.disabled = busy || selectedCount() === 0;
+        els.copyBtn.disabled = busy || !state.lastMarkdown;
+      }
+
+      function showToast(message, type = "success") {
+        window.clearTimeout(state.toastTimer);
+        els.toast.textContent = message;
+        els.toast.classList.toggle("is-error", type === "error");
+        els.toast.classList.add("is-visible");
+        state.toastTimer = window.setTimeout(() => {
+          els.toast.classList.remove("is-visible");
+        }, 3000);
+      }
+
+      /* ============================================================
+         6. 設定對話框
+         ============================================================ */
+
+      function syncSettingsUI() {
+        const mode = keyMode();
+        const customKey = getCustomApiKey();
+        const remembered = Boolean(readStorage(STORAGE_KEYS.apiKey));
+
+        els.apiKeyInput.value = mode === "manual" ? customKey : "";
+        els.apiKeyInput.disabled = mode !== "manual";
+        els.apiKeyInput.type = "password";
+        els.apiKeyInput.placeholder = mode === "manual" ? "sk-..." : "此模式不需要金鑰";
+        els.toggleKeyBtn.setAttribute("aria-label", "顯示金鑰");
+
+        if (elsV2.rememberKey) {
+          elsV2.rememberKey.checked = remembered;
+          elsV2.rememberKey.disabled = mode !== "manual";
+        }
+
+        const modeText = {
+          proxy: "連線模式：代理（金鑰留在伺服器，公開分享都安全）",
+          inline: "連線模式：內建金鑰（任何人打開此頁都可以取走它）",
+          manual: "連線模式：自備金鑰（只存在你的瀏覽器）"
+        };
+        const modeNode = document.getElementById("connectionMode");
+        if (modeNode) modeNode.textContent = modeText[mode];
+
+        if (mode === "proxy") {
+          els.keyStatus.textContent = "使用代理中：不需要 API 金鑰";
+        } else if (mode === "inline") {
+          els.keyStatus.textContent = "已內嵌金鑰（" + maskKey(CONFIG.INLINE_API_KEY) + "）";
+        } else if (customKey) {
+          els.keyStatus.textContent = "已設定金鑰（" + maskKey(customKey) + (remembered ? "，已記住" : "，只在本次瀏覽") + "）";
+        } else {
+          els.keyStatus.textContent = "尚未設定 API 金鑰";
+        }
+
+        els.keyStatus.classList.toggle("is-set", mode !== "manual" || Boolean(customKey));
+        els.clearKeyBtn.disabled = mode !== "manual" || !customKey;
+        refreshThemeControls();
+      }
+
+      function openSettings() {
+        syncSettingsUI();
+        if (els.settingsDialog.open) return;
+        if (typeof els.settingsDialog.showModal === "function") {
+          els.settingsDialog.showModal();
+        } else {
+          els.settingsDialog.setAttribute("open", "");
+        }
+      }
+
+      function closeSettings() {
+        if (typeof els.settingsDialog.close === "function") {
+          els.settingsDialog.close();
+        } else {
+          els.settingsDialog.removeAttribute("open");
+        }
+      }
+
+      function saveSettings() {
+        if (keyMode() !== "manual") {
+          syncSettingsUI();
+          closeSettings();
+          showToast("目前使用代理／內建金鑰，不需要輸入");
+          return;
+        }
+
+        const value = els.apiKeyInput.value.trim();
+        const remember = Boolean(elsV2.rememberKey && elsV2.rememberKey.checked);
+
+        removeSession(STORAGE_KEYS.sessionKey);
+        removeStorage(STORAGE_KEYS.apiKey);
+
+        if (value) {
+          if (remember) {
+            writeStorage(STORAGE_KEYS.apiKey, value);
+          } else {
+            writeSession(STORAGE_KEYS.sessionKey, value);
+          }
+        }
+
+        syncSettingsUI();
+        closeSettings();
+        showToast("設定已儲存");
+      }
+
+      function clearApiKey() {
+        removeSession(STORAGE_KEYS.sessionKey);
+        removeStorage(STORAGE_KEYS.apiKey);
+        els.apiKeyInput.value = "";
+        syncSettingsUI();
+        showToast("已清除 API 金鑰");
+      }
+
+      function toggleKeyVisibility() {
+        const showing = els.apiKeyInput.type === "text";
+        els.apiKeyInput.type = showing ? "password" : "text";
+        els.toggleKeyBtn.setAttribute("aria-label", showing ? "顯示金鑰" : "隱藏金鑰");
+      }
+
+      /* ============================================================
+         7. AI 提示詞與 DeepSeek 請求
+         ============================================================ */
+
+      class AppError extends Error {
+        constructor(message, code = "unknown") {
+          super(message);
+          this.name = "AppError";
+          this.code = code;
+        }
+      }
+
+      function buildPrompt(selection) {
+        return [
+          "使用者選擇：",
+          "",
+          "主星：" + selection.main,
+          "輔星：" + selection.support,
+          "長生：" + selection.life,
+          "",
+          "請扮演一位專業、溫暖且具洞察力的紫微斗數牌卡解讀師，根據以上三張牌進行整合解讀。",
+          "",
+          "請使用繁體中文（台灣用語），並嚴格依照以下七個段落輸出，每個段落以 Markdown 的「###」標題呈現：",
+          "",
+          "### 1. 核心能量",
+          "### 2. 現況分析",
+          "### 3. 感情運勢",
+          "### 4. 事業運勢",
+          "### 5. 財運分析",
+          "### 6. 未來三個月趨勢",
+          "### 7. 行動建議",
+          "",
+          "書寫原則：",
+          "- 以引導與自我成長為核心，避免恐嚇、宿命論、絕對化的預言或製造焦慮。",
+          "- 不提供醫療、法律、投資的具體決策建議；若涉及風險，僅提出一般性的提醒。",
+          "- 每個段落約 120–200 字，內容具體、可執行，並貼近現代生活情境。",
+          "- 適度使用條列與粗體重點，讓內容易讀，但不要過度堆疊。",
+          "- 解讀最後以一段溫暖、簡短的祝福收束，不要增加第八個標題。"
+        ].join("\n");
+      }
+
+      const SYSTEM_PROMPT =
+        "你是一位專業的紫微斗數牌卡解讀師，擅長以星曜象徵結合現代心理與生活情境。你總是以繁體中文（台灣用語）書寫，語氣溫暖、清晰、務實，重視自我覺察與可行動的建議，從不以恐懼或宿命論推動他人做決定。";
+
+      const STATUS_MESSAGES = {
+        400: ["請求格式有誤，請稍後再試。", "bad-request"],
+        401: ["API 金鑰無效或已過期，請至設定檢查。", "auth"],
+        402: ["DeepSeek 帳戶餘額不足，請充值後再試。", "balance"],
+        403: ["此 API 金鑰沒有存取權限。", "forbidden"],
+        404: ["找不到 API 端點，請確認服務狀態。", "not-found"],
+        429: ["請求過於頻繁，已自動重試，請稍候。", "rate-limit"],
+        500: ["DeepSeek 伺服器暫時異常，請稍後再試。", "server"],
+        503: ["DeepSeek 服務暫時繁忙，請稍後再試。", "server"]
+      };
+
+      function wait(ms) {
+        return new Promise((resolve) => window.setTimeout(resolve, ms));
+      }
+
+      /* 純函式：解析一行 SSE（方便自動測試） */
+      function parseSSELine(line) {
+        const trimmed = String(line).trim();
+        if (!trimmed || trimmed.charAt(0) === ":" || trimmed.indexOf("data:") !== 0) return null;
+        const payload = trimmed.slice(5).trim();
+        if (!payload || payload === "[DONE]") return null;
+        let chunk = null;
+        try {
+          chunk = JSON.parse(payload);
+        } catch (error) {
+          return null;
+        }
+        const choice = chunk && chunk.choices && chunk.choices[0];
+        if (!choice) return null;
+        const delta = choice.delta && typeof choice.delta.content === "string" ? choice.delta.content : "";
+        return { delta: delta, finishReason: choice.finish_reason || "" };
+      }
+
+      /* 純函式：組出請求（代理模式不帶 Authorization，金鑰留在伺服器） */
+      function buildReadingRequest(prompt, mode, apiKey) {
+        const useProxy = mode === "proxy";
+        const base = useProxy ? String(CONFIG.PROXY_URL).replace(/\/+$/, "") : null;
+        const headers = { "Content-Type": "application/json" };
+        if (!useProxy) {
+          headers.Authorization = "Bearer " + apiKey;
+        } else if (sessionToken) {
+          headers["x-zwds-session"] = sessionToken;
+        }
+        return {
+          url: useProxy ? base + "/chat" : API_ENDPOINT,
+          headers: headers,
+          body: JSON.stringify({
+            session: useProxy ? sessionToken : undefined,
+            model: API_MODEL,
+            messages: [
+              { role: "system", content: SYSTEM_PROMPT },
+              { role: "user", content: prompt }
+            ],
+            thinking: { type: CONFIG.THINKING },
+            temperature: CONFIG.TEMPERATURE,
+            top_p: 0.95,
+            max_tokens: CONFIG.MAX_TOKENS,
+            stream: CONFIG.STREAM
+          })
+        };
+      }
+
+      function readStream(response, onDelta) {
+        if (!response.body || typeof response.body.getReader !== "function") {
+          return Promise.resolve(null);
+        }
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder("utf-8");
+        let buffer = "";
+        let content = "";
+        let finishReason = "";
+
+        const consume = (line) => {
+          const parsed = parseSSELine(line);
+          if (!parsed) return;
+          if (parsed.finishReason) finishReason = parsed.finishReason;
+          if (parsed.delta) {
+            content += parsed.delta;
+            if (typeof onDelta === "function") onDelta(content);
+          }
+        };
+
+        const pump = () => reader.read().then((step) => {
+          if (step.done) {
+            if (buffer) consume(buffer);
+            return { content: content, finishReason: finishReason };
+          }
+          buffer += decoder.decode(step.value, { stream: true });
+          let index = buffer.indexOf("\n");
+          while (index !== -1) {
+            consume(buffer.slice(0, index));
+            buffer = buffer.slice(index + 1);
+            index = buffer.indexOf("\n");
+          }
+          return pump();
+        });
+
+        return pump();
+      }
+
+      async function requestOnce(apiKey, prompt, onDelta) {
+        const request = buildReadingRequest(prompt, keyMode(), apiKey);
+        const controller = new AbortController();
+        state.controller = controller;
+        const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+        try {
+          const response = await fetch(request.url, {
+            method: "POST",
+            headers: request.headers,
+            body: request.body,
+            signal: controller.signal
+          });
+
+          if (controller.signal.aborted) {
+            throw new AppError("連線逾時，請確認網路狀態後再試一次。", "timeout");
+          }
+
+          if (!response.ok) {
+            const entry = STATUS_MESSAGES[response.status];
+            let apiMessage = "";
+            let apiCode = "";
+            try {
+              const data = await response.json();
+              apiMessage = data && data.error && data.error.message ? String(data.error.message) : "";
+              apiCode = data && data.error && data.error.code ? String(data.error.code) : "";
+            } catch (error) {
+              apiMessage = "";
+            }
+            const isQuota = apiCode === "quota_exhausted" || apiCode === "global_blocked";
+            const isSession = apiCode === "session_required";
+            const message = isQuota
+              ? (apiMessage || "本週免費次數已用完。")
+              : (entry
+                ? entry[0]
+                : "API 請求失敗（HTTP " + response.status + "）" + (apiMessage ? "：" + apiMessage : ""));
+            const failure = new AppError(
+              message,
+              isSession ? "session" : (isQuota ? "quota" : (entry ? entry[1] : "http"))
+            );
+            failure.httpStatus = response.status;
+            throw failure;
+          }
+
+          if (CONFIG.STREAM) {
+            const streamed = await readStream(response, onDelta);
+            if (streamed) {
+              const text = (streamed.content || "").trim();
+              if (!text) throw new AppError("AI 回傳了空白內容，請重新嘗試。", "empty");
+              return { content: text, finishReason: streamed.finishReason };
+            }
+          }
+
+          const data = await response.json().catch(() => null);
+          const choice = data && data.choices && data.choices[0];
+          const content = choice && choice.message ? choice.message.content : "";
+          if (typeof content !== "string" || !content.trim()) {
+            throw new AppError("AI 回傳了空白內容，請重新嘗試。", "empty");
+          }
+          return { content: content.trim(), finishReason: choice.finish_reason || "" };
+        } catch (error) {
+          if (error instanceof AppError) throw error;
+          if (error && error.name === "AbortError") {
+            throw new AppError("連線逾時，請確認網路狀態後再試一次。", "timeout");
+          }
+          throw new AppError("無法連線至 AI 服務。請檢查網路，或確認瀏覽器是否阻擋跨網域請求（CORS）。", "network");
+        } finally {
+          window.clearTimeout(timeoutId);
+          if (state.controller === controller) state.controller = null;
+        }
+      }
+
+      async function requestReading(prompt, onDelta) {
+        const apiKey = getApiKey();
+        if (!apiKey) {
+          throw new AppError("尚未設定 DeepSeek API 金鑰，請先至設定中填入。", "missing-key");
+        }
+
+        let lastError = null;
+        for (let attempt = 1; attempt <= 3; attempt += 1) {
+          try {
+            const result = await requestOnce(apiKey, prompt, onDelta);
+            return {
+              content: result.content,
+              finishReason: result.finishReason,
+              truncated: result.finishReason === "length"
+            };
+          } catch (error) {
+            lastError = error;
+            const status = error && error.httpStatus;
+            const retryable = [429, 500, 502, 503, 504].indexOf(status) !== -1
+              || (error && (error.code === "timeout" || error.code === "network"));
+            if (!retryable || attempt === 3) break;
+            if (typeof onDelta === "function") onDelta("");
+            await wait(attempt === 1 ? 1200 : 2600);
+          }
+        }
+        throw lastError;
+      }
+
+      function normalizeError(error) {
+        if (error instanceof AppError) {
+          return { message: error.message, code: error.code };
+        }
+        if (error && error.name === "AbortError") {
+          return { message: "連線逾時，請稍後再試。", code: "timeout" };
+        }
+        return { message: "發生未預期的錯誤，請重新嘗試。", code: "unknown" };
+      }
+
+      function startLoadingMessages() {
+        stopLoadingMessages();
+        let index = 0;
+        els.loadingTitle.textContent = LOADING_MESSAGES[0];
+        state.loadingTimer = window.setInterval(() => {
+          index = (index + 1) % LOADING_MESSAGES.length;
+          els.loadingTitle.textContent = LOADING_MESSAGES[index];
+        }, 3200);
+      }
+
+      function stopLoadingMessages() {
+        if (state.loadingTimer) {
+          window.clearInterval(state.loadingTimer);
+          state.loadingTimer = null;
+        }
+      }
+
+      function setResultState(name) {
+        const states = {
+          idle: { label: "待解讀", tone: "idle" },
+          loading: { label: "解讀中", tone: "loading" },
+          error: { label: "需要處理", tone: "error" },
+          success: { label: "已完成", tone: "done" }
+        };
+        const meta = states[name] || states.idle;
+
+        els.result.dataset.state = name;
+        $$(".state", els.resultBody).forEach((panel) => {
+          panel.hidden = panel.dataset.state !== name;
+        });
+
+        els.resultStatusText.textContent = meta.label;
+        els.resultStatus.dataset.tone = meta.tone;
+        els.resultBody.setAttribute("aria-busy", String(name === "loading"));
+        const followupBox = document.getElementById("followupBox");
+        if (followupBox) followupBox.hidden = name !== "success";
+
+        els.copyBtn.disabled = name !== "success" || !state.lastMarkdown;
+        if (elsV2 && elsV2.downloadBtn) {
+          elsV2.downloadBtn.disabled = name !== "success" || !state.lastMarkdown;
+        }
+      }
+
+      function showError(message, code) {
+        state.lastErrorCode = code || "unknown";
+        els.errorMessage.textContent = message;
+      }
+
+      async function startReading() {
+        if (state.isReading) return;
+
+        if (!isComplete()) {
+          showToast("請先選好主星、輔星與長生", "error");
+          return;
+        }
+
+        if (gateNeeded()) {
+          pendingReading = true;
+          showGate();
+          return;
+        }
+
+        if (!getApiKey()) {
+          showError("尚未設定 DeepSeek API 金鑰。請在右上角「設定」貼上金鑰，或改用代理模式。", "missing-key");
+          setResultState("error");
+          scrollToResult();
+          openSettings();
+          return;
+        }
+
+        const requestSelection = {
+          main: state.selection.main,
+          support: state.selection.support,
+          life: state.selection.life
+        };
+        const prompt = buildPrompt(requestSelection);
+
+        state.readingSelection = { main: requestSelection.main, support: requestSelection.support, life: requestSelection.life };
+        state.followups = [];
+        state.currentHistoryAt = 0;
+        const followupList = document.getElementById("followupList");
+        if (followupList) followupList.textContent = "";
+        const followupStatus = document.getElementById("followupStatus");
+        if (followupStatus) followupStatus.textContent = "";
+
+        state.lastMarkdown = "";
+        els.markdownOut.innerHTML = "";
+        els.copyBtn.disabled = true;
+        if (elsV2.downloadBtn) elsV2.downloadBtn.disabled = true;
+        if (elsV2.truncationNote) {
+          elsV2.truncationNote.hidden = true;
+          elsV2.truncationNote.textContent = "";
+        }
+
+        setReadingUI(true);
+        setResultState("loading");
+        startLoadingMessages();
+        scrollToResult();
+
+        try {
+          const result = await requestReading(prompt, scheduleStreamRender);
+          state.lastMarkdown = result.content;
+          els.markdownOut.innerHTML = renderMarkdown(result.content);
+          setResultState("success");
+          els.copyBtn.disabled = false;
+          if (elsV2.downloadBtn) elsV2.downloadBtn.disabled = false;
+
+          if (result.truncated && elsV2.truncationNote) {
+            elsV2.truncationNote.textContent =
+              "⚠️ 今次解讀可能被截斷（finish_reason = length，已用到 " + CONFIG.MAX_TOKENS +
+              " tokens 上限）。內容未必完整，可以再撳一次「開始解讀」。";
+            elsV2.truncationNote.hidden = false;
+          }
+
+          state.currentHistoryAt = Date.now();
+          pushHistory({
+            at: Date.now(),
+            main: requestSelection.main,
+            support: requestSelection.support,
+            life: requestSelection.life,
+            markdown: result.content,
+            truncated: Boolean(result.truncated),
+            model: API_MODEL,
+            version: CONFIG.APP_VERSION
+          });
+
+          showToast("解讀完成，願你看見自己的光");
+        } catch (error) {
+          const normalized = normalizeError(error);
+          showError(normalized.message, normalized.code);
+          if (normalized.code === "quota") {
+            refreshQuota();
+            openSettings();
+          }
+          if (normalized.code === "session") {
+            pendingReading = true;
+            sessionToken = "";
+            try { window.sessionStorage.removeItem("zwds.session"); } catch (error) { /* 忽略 */ }
+            showGate();
+          }
+          setResultState("error");
+          showToast("解讀失敗，請稍後再試", "error");
+        } finally {
+          stopLoadingMessages();
+          setReadingUI(false);
+        }
+      }
+
+      function escapeHtml(value) {
+        return String(value)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#39;");
+      }
+
+      function renderInline(rawText) {
+        let text = escapeHtml(rawText);
+        const codeTokens = [];
+
+        // 先抽出行內程式碼，避免內部的星號或底線被誤判。
+        text = text.replace(/`([^`\n]+)`/g, (match, code) => {
+          codeTokens.push(code);
+          return "\u0000" + (codeTokens.length - 1) + "\u0000";
+        });
+
+        // 只允許 http/https 連結。
+        text = text.replace(
+          /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
+          (match, label, url) =>
+            '<a href="' + url + '" target="_blank" rel="noopener noreferrer">' + label + "</a>"
+        );
+
+        text = text.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+        text = text.replace(/__([^_]+)__/g, "<strong>$1</strong>");
+        text = text.replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>");
+
+        text = text.replace(/\u0000(\d+)\u0000/g, (match, index) => {
+          return "<code>" + codeTokens[Number(index)] + "</code>";
+        });
+
+        return text;
+      }
+
+      function splitTableRow(row) {
+        let value = row.trim();
+        if (value.startsWith("|")) value = value.slice(1);
+        if (value.endsWith("|")) value = value.slice(0, -1);
+        return value.split("|").map((cell) => cell.trim());
+      }
+
+      function renderMarkdown(source) {
+        const lines = String(source).replace(/\r\n?/g, "\n").split("\n");
+        const output = [];
+        let i = 0;
+
+        const isBlank = (line) => /^\s*$/.test(line);
+        const isHeading = (line) => /^\s{0,3}(#{1,6})\s+/.test(line);
+        const isFence = (line) => /^\s*```/.test(line);
+        const isQuote = (line) => /^\s{0,3}>\s?/.test(line);
+        const isHr = (line) => /^\s{0,3}([-*_])(?:\s*\1){2,}\s*$/.test(line);
+        const getListItem = (line) => line.match(/^\s*([-*+]|\d+[.)])\s+(.*)$/);
+        const isTableStart = (index) =>
+          index + 1 < lines.length &&
+          lines[index].includes("|") &&
+          /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(lines[index + 1]);
+
+        while (i < lines.length) {
+          const line = lines[i];
+
+          if (isBlank(line)) {
+            i += 1;
+            continue;
+          }
+
+          // 圍欄程式碼區塊
+          const fence = line.match(/^\s*```\s*([\w+-]*)\s*$/);
+          if (fence) {
+            const language = fence[1];
+            const codeLines = [];
+            i += 1;
+            while (i < lines.length && !/^\s*```\s*$/.test(lines[i])) {
+              codeLines.push(lines[i]);
+              i += 1;
+            }
+            if (i < lines.length) i += 1;
+            const languageClass = language
+              ? ' class="language-' + escapeHtml(language) + '"'
+              : "";
+            output.push(
+              "<pre><code" + languageClass + ">" +
+              escapeHtml(codeLines.join("\n")) +
+              "</code></pre>"
+            );
+            continue;
+          }
+
+          // 標題
+          const heading = line.match(/^\s{0,3}(#{1,6})\s+(.*?)\s*#*\s*$/);
+          if (heading) {
+            const level = Math.min(heading[1].length, 6);
+            output.push(
+              "<h" + level + ">" + renderInline(heading[2]) + "</h" + level + ">"
+            );
+            i += 1;
+            continue;
+          }
+
+          // 分隔線
+          if (isHr(line)) {
+            output.push("<hr>");
+            i += 1;
+            continue;
+          }
+
+          // 表格
+          if (isTableStart(i)) {
+            const headers = splitTableRow(lines[i]);
+            const alignments = splitTableRow(lines[i + 1]).map((cell) => {
+              const value = cell.trim();
+              if (/^:-+:$/.test(value)) return "center";
+              if (/-+:$/.test(value)) return "right";
+              return "left";
+            });
+            i += 2;
+
+            const rows = [];
+            while (i < lines.length && !isBlank(lines[i]) && lines[i].includes("|")) {
+              rows.push(splitTableRow(lines[i]));
+              i += 1;
+            }
+
+            const headHtml = headers.map((cell, index) =>
+              '<th style="text-align:' + (alignments[index] || "left") + '">' +
+              renderInline(cell) +
+              "</th>"
+            ).join("");
+
+            const bodyHtml = rows.map((row) => {
+              const cells = headers.map((cell, index) =>
+                '<td style="text-align:' + (alignments[index] || "left") + '">' +
+                renderInline(row[index] || "") +
+                "</td>"
+              ).join("");
+              return "<tr>" + cells + "</tr>";
+            }).join("");
+
+            output.push(
+              '<div class="table-wrap"><table><thead><tr>' +
+              headHtml +
+              "</tr></thead><tbody>" +
+              bodyHtml +
+              "</tbody></table></div>"
+            );
+            continue;
+          }
+
+          // 引用
+          if (isQuote(line)) {
+            const quoted = [];
+            while (i < lines.length && isQuote(lines[i])) {
+              quoted.push(lines[i].replace(/^\s{0,3}>\s?/, ""));
+              i += 1;
+            }
+            output.push(
+              "<blockquote>" + quoted.map(renderInline).join("<br>") + "</blockquote>"
+            );
+            continue;
+          }
+
+          // 有序／無序清單
+          const firstItem = getListItem(line);
+          if (firstItem) {
+            const ordered = /^\d/.test(firstItem[1]);
+            const items = [];
+
+            while (i < lines.length) {
+              const item = getListItem(lines[i]);
+              if (!item || /^\d/.test(item[1]) !== ordered) break;
+
+              items.push(item[2]);
+              i += 1;
+
+              // 吸收縮排的續行文字
+              while (
+                i < lines.length &&
+                !isBlank(lines[i]) &&
+                !getListItem(lines[i]) &&
+                !isHeading(lines[i]) &&
+                !isQuote(lines[i]) &&
+                !isFence(lines[i]) &&
+                !isHr(lines[i]) &&
+                !isTableStart(i)
+              ) {
+                items[items.length - 1] += " " + lines[i].trim();
+                i += 1;
+              }
+            }
+
+            const tag = ordered ? "ol" : "ul";
+            output.push(
+              "<" + tag + ">" +
+              items.map((item) => "<li>" + renderInline(item) + "</li>").join("") +
+              "</" + tag + ">"
+            );
+            continue;
+          }
+
+          // 段落
+          const paragraph = [line.trim()];
+          i += 1;
+          while (
+            i < lines.length &&
+            !isBlank(lines[i]) &&
+            !isHeading(lines[i]) &&
+            !isQuote(lines[i]) &&
+            !isHr(lines[i]) &&
+            !isFence(lines[i]) &&
+            !getListItem(lines[i]) &&
+            !isTableStart(i)
+          ) {
+            paragraph.push(lines[i].trim());
+            i += 1;
+          }
+          output.push(
+            "<p>" + paragraph.map(renderInline).join("<br>") + "</p>"
+          );
+        }
+
+        return output.join("");
+      }
+
+      /* ============================================================
+         9. 複製功能
+         ============================================================ */
+
+      async function copyText(text) {
+        try {
+          if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(text);
+            return true;
+          }
+        } catch (error) {
+          /* 改用備援方案 */
+        }
+
+        try {
+          const textarea = document.createElement("textarea");
+          textarea.value = text;
+          textarea.setAttribute("readonly", "");
+          textarea.style.position = "fixed";
+          textarea.style.top = "0";
+          textarea.style.left = "0";
+          textarea.style.opacity = "0";
+          document.body.appendChild(textarea);
+          textarea.select();
+          const ok = document.execCommand("copy");
+          textarea.remove();
+          return ok;
+        } catch (error) {
+          return false;
+        }
+      }
+
+      async function copyReading() {
+        if (!state.lastMarkdown) return;
+        const ok = await copyText(state.lastMarkdown);
+        showToast(
+          ok ? "已複製解讀內容" : "複製失敗，請手動選取內容",
+          ok ? "success" : "error"
+        );
+      }
+
+      /* ============================================================
+         10. 事件綁定與初始化
+         ============================================================ */
+
+      function bindEvents() {
+        // 牌卡選擇（事件代理）
+        els.groups.addEventListener("click", (event) => {
+          const chip = event.target.closest(".chip");
+          if (!chip || !els.groups.contains(chip)) return;
+          selectCard(chip.dataset.kind, chip.dataset.name);
+        });
+
+        // 各牌組重設
+        $$("[data-reset]").forEach((button) => {
+          button.addEventListener("click", () => resetGroup(button.dataset.reset));
+        });
+
+        // 摘要操作
+        els.randomBtn.addEventListener("click", drawRandomCards);
+        els.clearBtn.addEventListener("click", clearAllSelections);
+        $$(".js-read").forEach((button) => {
+          button.addEventListener("click", startReading);
+        });
+
+        // 結果操作
+        els.retryBtn.addEventListener("click", () => {
+          if (!getApiKey()) {
+            openSettings();
+            return;
+          }
+          startReading();
+        });
+        els.errorSettingsBtn.addEventListener("click", openSettings);
+        els.copyBtn.addEventListener("click", copyReading);
+
+        // 主題
+        els.themeToggle.addEventListener("click", () => {
+          const next = resolveTheme(state.themePref) === "dark" ? "light" : "dark";
+          applyTheme(next, { animate: true });
+        });
+
+        $$("[data-theme-pref]").forEach((button) => {
+          button.addEventListener("click", () => {
+            applyTheme(button.dataset.themePref, { animate: true });
+          });
+        });
+
+        // 系統主題變更
+        const handleSystemTheme = () => {
+          if (state.themePref === "auto") {
+            applyTheme("auto", { persist: false, animate: true });
+          }
+        };
+        if (typeof darkModeQuery.addEventListener === "function") {
+          darkModeQuery.addEventListener("change", handleSystemTheme);
+        } else if (typeof darkModeQuery.addListener === "function") {
+          darkModeQuery.addListener(handleSystemTheme);
+        }
+
+        // 設定對話框
+        els.settingsBtn.addEventListener("click", openSettings);
+        els.closeSettingsBtn.addEventListener("click", closeSettings);
+        els.saveSettingsBtn.addEventListener("click", saveSettings);
+        els.clearKeyBtn.addEventListener("click", clearApiKey);
+        els.toggleKeyBtn.addEventListener("click", toggleKeyVisibility);
+
+        els.apiKeyInput.addEventListener("keydown", (event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            saveSettings();
+          }
+        });
+
+        els.settingsDialog.addEventListener("click", (event) => {
+          if (event.target === els.settingsDialog) closeSettings();
+        });
+      }
+
+      function init() {
+        renderCards(els.mainStars, MAIN_STARS, "main");
+        renderCards(els.dualStars, DUAL_STARS, "main");
+        renderCards(els.supportCards, SUPPORT_CARDS, "support");
+        renderCards(els.lifeStages, LIFE_STAGES, "life");
+
+        restoreSelection();
+        KINDS.forEach(syncSelectionUI);
+        updateSummary();
+        setResultState("idle");
+        applyTheme(getThemePreference(), { persist: false, animate: false });
+        bindEvents();
+        bindV2Events();
+        refreshHistoryUI();
+        syncSettingsUI();
+        warnIfInlineKeyExposed();
+      }
+
+      /* ============================================================
+         v2 追加模組：解讀紀錄 / 下載 / 串流渲染節流 / 內嵌金鑰警告
+         ============================================================ */
+
+      const elsV2 = {
+        historyBtn: $("#historyBtn"),
+        downloadBtn: $("#downloadBtn"),
+        historyDialog: $("#historyDialog"),
+        historyList: $("#historyList"),
+        closeHistoryBtn: $("#closeHistoryBtn"),
+        truncationNote: $("#truncationNote"),
+        rememberKey: $("#rememberKey"),
+        versionLine: $("#versionLine")
+      };
+
+      let streamTimer = 0;
+      let streamPending = "";
+
+      /* 串流時每 90ms 才重繪一次，避免逐字重排造成卡頓 */
+      function scheduleStreamRender(text) {
+        streamPending = text;
+        if (streamTimer) return;
+        streamTimer = window.setTimeout(() => {
+          streamTimer = 0;
+          els.markdownOut.innerHTML = streamPending ? renderMarkdown(streamPending) : "";
+        }, 90);
+      }
+
+      function loadHistory() {
+        const raw = readStorage(STORAGE_KEYS.history);
+        if (!raw) return [];
+        try {
+          const parsed = JSON.parse(raw);
+          return Array.isArray(parsed) ? parsed.slice(0, CONFIG.HISTORY_LIMIT) : [];
+        } catch (error) {
+          return [];
+        }
+      }
+
+      function saveHistory(list) {
+        writeStorage(STORAGE_KEYS.history, JSON.stringify(list.slice(0, CONFIG.HISTORY_LIMIT)));
+      }
+
+      function pushHistory(entry) {
+        const list = loadHistory();
+        list.unshift(entry);
+        saveHistory(list);
+        refreshHistoryUI();
+      }
+
+      function refreshHistoryUI() {
+        if (!elsV2.historyBtn) return;
+        const total = loadHistory().length;
+        elsV2.historyBtn.textContent = total ? "歷史 " + total : "歷史";
+        elsV2.historyBtn.disabled = total === 0;
+      }
+
+      function formatTime(stamp) {
+        const date = new Date(stamp);
+        if (isNaN(date.getTime())) return "";
+        const pad = (value) => (value < 10 ? "0" : "") + value;
+        return date.getFullYear() + "-" + pad(date.getMonth() + 1) + "-" + pad(date.getDate()) +
+          " " + pad(date.getHours()) + ":" + pad(date.getMinutes());
+      }
+
+      function loadHistoryItem(item) {
+        state.selection = { main: item.main, support: item.support, life: item.life };
+        KINDS.forEach(syncSelectionUI);
+        persistSelection();
+        updateSummary();
+        state.lastMarkdown = item.markdown;
+        els.markdownOut.innerHTML = renderMarkdown(item.markdown);
+        if (elsV2.truncationNote) elsV2.truncationNote.hidden = true;
+        setResultState("success");
+        closeHistory();
+        scrollToResult();
+        showToast("已載入該次解讀");
+      }
+
+      function deleteHistoryItem(stamp) {
+        saveHistory(loadHistory().filter((item) => item.at !== stamp));
+        renderHistory();
+        refreshHistoryUI();
+        showToast("已刪除該筆紀錄");
+      }
+
+      function renderHistory() {
+        const box = elsV2.historyList;
+        if (!box) return;
+        const list = loadHistory();
+        box.textContent = "";
+
+        if (!list.length) {
+          const empty = document.createElement("p");
+          empty.className = "history-empty";
+          empty.textContent = "暫時未有紀錄。完成一次解讀後會自動出現。";
+          box.appendChild(empty);
+          return;
+        }
+
+        list.forEach((item) => {
+          const card = document.createElement("article");
+          card.className = "history-item";
+
+          const title = document.createElement("h4");
+          title.textContent = item.main + " · " + item.support + " · " + item.life;
+
+          const meta = document.createElement("p");
+          meta.textContent = formatTime(item.at) + " · " + (item.model || API_MODEL) +
+            (item.truncated ? " · 可能被截斷" : "");
+
+          const row = document.createElement("div");
+          row.className = "row";
+
+          const openBtn = document.createElement("button");
+          openBtn.type = "button";
+          openBtn.className = "btn btn-ghost btn-sm";
+          openBtn.textContent = "載入";
+          openBtn.addEventListener("click", () => loadHistoryItem(item));
+
+          const copyBtn = document.createElement("button");
+          copyBtn.type = "button";
+          copyBtn.className = "btn btn-ghost btn-sm";
+          copyBtn.textContent = "複製";
+          copyBtn.addEventListener("click", () => {
+            copyText(item.markdown).then((ok) => {
+              showToast(ok ? "已複製" : "複製失敗", ok ? "success" : "error");
+            });
+          });
+
+          const delBtn = document.createElement("button");
+          delBtn.type = "button";
+          delBtn.className = "btn btn-ghost btn-sm";
+          delBtn.textContent = "刪除";
+          delBtn.addEventListener("click", () => deleteHistoryItem(item.at));
+
+          row.appendChild(openBtn);
+          row.appendChild(copyBtn);
+          row.appendChild(delBtn);
+          card.appendChild(title);
+          card.appendChild(meta);
+          card.appendChild(row);
+          box.appendChild(card);
+        });
+      }
+
+      function openHistory() {
+        renderHistory();
+        refreshHistoryUI();
+        if (!elsV2.historyDialog) return;
+        if (typeof elsV2.historyDialog.showModal === "function") {
+          elsV2.historyDialog.showModal();
+        } else {
+          elsV2.historyDialog.setAttribute("open", "");
+        }
+      }
+
+      function closeHistory() {
+        if (!elsV2.historyDialog) return;
+        if (typeof elsV2.historyDialog.close === "function") {
+          elsV2.historyDialog.close();
+        } else {
+          elsV2.historyDialog.removeAttribute("open");
+        }
+      }
+
+      function downloadReading() {
+        if (!state.lastMarkdown) return;
+        const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+        const header = "<!-- 紫微斗數 AI 解牌 v" + CONFIG.APP_VERSION + " · " + stamp + " -->\n";
+        const blob = new Blob([header + state.lastMarkdown + "\n"], { type: "text/markdown;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = "ziwei-reading-" + stamp + ".md";
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.setTimeout(() => URL.revokeObjectURL(url), 4000);
+        showToast("已下載 Markdown 檔");
+      }
+
+      /* 內嵌金鑰 + 公開網址 = 金鑰等於公開。這裡主動示警。 */
+      function warnIfInlineKeyExposed() {
+        if (keyMode() !== "inline") return;
+        const host = window.location.hostname;
+        const isLocal = window.location.protocol === "file:" || host === "localhost" ||
+          host === "127.0.0.1" || host === "";
+        if (isLocal) return;
+
+        const box = document.createElement("div");
+        box.className = "notice";
+        box.setAttribute("role", "alert");
+        box.style.cssText = "position:fixed;left:0;right:0;top:0;z-index:9999;border-radius:0;margin:0;text-align:center;";
+        box.textContent = "⚠️ 這個頁面內嵌了 API 金鑰，而你正把它放在公開網址：任何訪客都可以取走金鑰並用你的額度。請改用代理模式（worker.js）。";
+        document.body.appendChild(box);
+      }
+
+      function bindV2Events() {
+        if (elsV2.historyBtn) elsV2.historyBtn.addEventListener("click", openHistory);
+        if (elsV2.closeHistoryBtn) elsV2.closeHistoryBtn.addEventListener("click", closeHistory);
+        if (elsV2.downloadBtn) elsV2.downloadBtn.addEventListener("click", downloadReading);
+
+        const followupBtn = document.getElementById("followupBtn");
+        if (followupBtn) followupBtn.addEventListener("click", askFollowup);
+        const followupInput = document.getElementById("followupInput");
+        if (followupInput) {
+          followupInput.addEventListener("keydown", (event) => {
+            if (event.key === "Enter") { event.preventDefault(); askFollowup(); }
+          });
+        }
+
+        const gateRetry = document.getElementById("gateRetryBtn");
+        if (gateRetry) {
+          gateRetry.addEventListener("click", () => {
+            gateRetry.hidden = true;
+            const status = document.getElementById("gateStatus");
+            if (status) status.textContent = "請完成下方驗證…";
+            if (window.turnstile && gateWidgetId !== null) window.turnstile.reset(gateWidgetId);
+            else renderGateTurnstile();
+          });
+        }
+
+        const quotaChip = document.getElementById("quotaChip");
+        if (quotaChip) {
+          quotaChip.addEventListener("click", () => {
+            openSettings();
+            refreshQuota();
+          });
+        }
+
+        const unlockBtn = document.getElementById("unlockBtn");
+        if (unlockBtn) unlockBtn.addEventListener("click", unlockQuota);
+        const unlockInput = document.getElementById("unlockInput");
+        if (unlockInput) {
+          unlockInput.addEventListener("keydown", (event) => {
+            if (event.key === "Enter") { event.preventDefault(); unlockQuota(); }
+          });
+        }
+        loadTurnstile();
+        const gateNameInput = document.getElementById("gateName");
+        if (gateNameInput) {
+          try { gateNameInput.value = window.localStorage.getItem("zwds.name") || ""; } catch (error) { /* 忽略 */ }
+        }
+        maybeShowGate();
+        refreshQuota();
+
+        const settingsBtn = document.getElementById("settingsBtn");
+        if (settingsBtn) settingsBtn.addEventListener("click", refreshQuota);
+
+        if (elsV2.historyDialog) {
+          elsV2.historyDialog.addEventListener("click", (event) => {
+            if (event.target === elsV2.historyDialog) closeHistory();
+          });
+        }
+
+        if (elsV2.versionLine) {
+          elsV2.versionLine.textContent = "改進版 v" + CONFIG.APP_VERSION +
+            " · 原始設計 cy55088c-hue/ziwei（2026-11-11 快照）";
+        }
+
+        const modelLabel = document.getElementById("modelNameLabel");
+        if (modelLabel) modelLabel.textContent = API_MODEL + (CONFIG.THINKING === "disabled" ? " · 非思考" : " · 思考");
+      }
+
+      /* ---------- v2.5：整站人機驗證（gate） ---------- */
+
+      const SESSION_KEY = "zwds.session";
+      let sessionToken = "";
+      try { sessionToken = window.sessionStorage.getItem(SESSION_KEY) || ""; } catch (error) { sessionToken = ""; }
+      let gateWidgetId = null;
+      let pendingReading = false;
+
+      function gateNeeded() {
+        return keyMode() === "proxy" && Boolean(CONFIG.TURNSTILE_SITE_KEY) && !sessionToken;
+      }
+
+      function renderGateTurnstile() {
+        const slot = document.getElementById("gateSlot");
+        if (!slot) return;
+        if (!window.turnstile) { loadTurnstile(); return; }
+        if (gateWidgetId !== null) { window.turnstile.reset(gateWidgetId); return; }
+        gateWidgetId = window.turnstile.render(slot, {
+          sitekey: CONFIG.TURNSTILE_SITE_KEY,
+          action: "gate",
+          theme: "auto",
+          language: "zh-tw",
+          callback: onGateSuccess
+        });
+      }
+
+      async function onGateSuccess(token) {
+        const status = document.getElementById("gateStatus");
+        const nameInput = document.getElementById("gateName");
+        const name = nameInput ? String(nameInput.value || "").trim() : "";
+
+        if (!name) {
+          if (status) status.textContent = "請先輸入一個短名（1–20 字），再等一下驗證完成";
+          if (nameInput) nameInput.focus();
+          if (window.turnstile && gateWidgetId !== null) window.turnstile.reset(gateWidgetId);
+          return;
+        }
+
+        if (status) status.textContent = "驗證成功，正在開通…";
+        try {
+          const res = await fetch(proxyBase() + "/verify", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ "cf-turnstile-response": token, name: name })
+          });
+          const data = await res.json().catch(() => null);
+
+          // 舊版 Worker 未有 /verify（404/405）→ 放行，避免整站卡死
+          if (res.status === 404 || res.status === 405) {
+            sessionToken = "legacy-worker";
+            hideGate();
+            showToast("Worker 未支援整站驗證（請更新 Worker）", "error");
+            return;
+          }
+
+          if (!res.ok) {
+            if (status) status.textContent = (data && data.error && data.error.message) || "驗證失敗，請再試";
+            const retry = document.getElementById("gateRetryBtn");
+            if (retry) retry.hidden = false;
+            if (window.turnstile && gateWidgetId !== null) window.turnstile.reset(gateWidgetId);
+            return;
+          }
+          if (data && data.token) {
+            sessionToken = data.token;
+            try { window.sessionStorage.setItem(SESSION_KEY, sessionToken); } catch (error) { /* 忽略 */ }
+          } else {
+            sessionToken = "skipped";
+          }
+          try { window.localStorage.setItem("zwds.name", name); } catch (error) { /* 忽略 */ }
+          const nameEl = document.getElementById("gateName");
+          if (nameEl) nameEl.value = name;
+          hideGate();
+          showToast("驗證完成，" + name + "，可以開始解讀");
+
+          if (pendingReading) {
+            pendingReading = false;
+            window.setTimeout(() => startReading(), 200);
+          }
+        } catch (error) {
+          if (status) status.textContent = "網絡問題，請再試一次";
+        }
+      }
+
+      function showGate() {
+        const gate = document.getElementById("gateOverlay");
+        if (!gate) return;
+        gate.hidden = false;
+        document.body.style.overflow = "hidden";
+        const status = document.getElementById("gateStatus");
+        if (status) status.textContent = "請完成下方驗證…";
+        renderGateTurnstile();
+      }
+
+      function hideGate() {
+        const gate = document.getElementById("gateOverlay");
+        if (!gate) return;
+        gate.hidden = true;
+        document.body.style.overflow = "";
+      }
+
+      function maybeShowGate() {
+        if (gateNeeded()) showGate();
+        else hideGate();
+      }
+
+      /* ---------- v2.2：每週配額 / 解鎖碼 / Turnstile ---------- */
+
+      let turnstileWidgetId = null;
+
+      function proxyBase() {
+        return String(CONFIG.PROXY_URL || "").replace(/\/+$/, "");
+      }
+
+      async function refreshQuota() {
+        const block = document.getElementById("quotaBlock");
+        const status = document.getElementById("quotaStatus");
+        const chip = document.getElementById("quotaChip");
+        if (!block || !status) return;
+        if (keyMode() !== "proxy") {
+          block.hidden = true;
+          if (chip) chip.hidden = true;
+          return;
+        }
+        block.hidden = false;
+        if (chip) chip.hidden = false;
+        status.textContent = "讀取中…";
+        try {
+          const res = await fetch(proxyBase() + "/quota");
+          const data = await res.json().catch(() => null);
+          if (!res.ok || !data) { status.textContent = "讀取失敗"; return; }
+
+          status.textContent =
+            (data.name ? "你好，" + data.name + "｜" : "") +
+            "你的 IP：" + (data.ip || "?") +
+            "｜個人：已用 " + data.used + " / " + data.limit + "（剩 " + data.remaining + "）" +
+            "｜全站：已用 " + data.globalUsed + " / " + data.globalLimit + "（剩 " + data.globalRemaining + "）";
+
+          if (chip) {
+            chip.textContent = data.globalBlocked ? "全站已滿" : "本週 " + data.remaining + " 次";
+            chip.dataset.state = data.globalBlocked ? "blocked" : (data.remaining <= 2 ? "low" : "ok");
+            chip.title = "個人剩 " + data.remaining + " 次／全站剩 " + data.globalRemaining + " 次（點擊查看或解鎖）";
+          }
+        } catch (error) {
+          status.textContent = "讀取失敗（網絡問題）";
+        }
+      }
+
+      function loadTurnstile() {
+        if (keyMode() !== "proxy") return;
+        if (!CONFIG.TURNSTILE_SITE_KEY || window.turnstile) return;
+        const script = document.createElement("script");
+        script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+        script.async = true;
+        script.defer = true;
+        script.onload = function () {
+          renderTurnstile();
+          if (gateNeeded()) renderGateTurnstile();
+        };
+        document.head.appendChild(script);
+      }
+
+      function renderTurnstile() {
+        const slot = document.getElementById("turnstileSlot");
+        if (!slot || !window.turnstile || turnstileWidgetId !== null) return;
+        turnstileWidgetId = window.turnstile.render(slot, {
+          sitekey: CONFIG.TURNSTILE_SITE_KEY,
+          action: "unlock",          // siteverify 會回傳，Worker 會核對
+          theme: "auto",
+          language: "zh-tw",
+          appearance: "always"
+        });
+      }
+
+      function turnstileToken() {
+        if (!CONFIG.TURNSTILE_SITE_KEY || !window.turnstile || turnstileWidgetId === null) return "";
+        return window.turnstile.getResponse(turnstileWidgetId) || "";
+      }
+
+      async function unlockQuota() {
+        if (keyMode() !== "proxy") {
+          showToast("此版本不用解鎖（自備金鑰）", "error");
+          return;
+        }
+        const input = document.getElementById("unlockInput");
+        const password = input ? String(input.value || "").trim() : "";
+        if (!password) { showToast("請輸入解鎖碼", "error"); return; }
+
+        try {
+          const res = await fetch(proxyBase() + "/unlock", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              password: password,
+              // canonical 欄位名；turnstileToken 保留作向後兼容
+              "cf-turnstile-response": turnstileToken(),
+              turnstileToken: turnstileToken()
+            })
+          });
+          const data = await res.json().catch(() => null);
+          if (!res.ok) {
+            showToast((data && data.error && data.error.message) || "解鎖失敗", "error");
+            if (window.turnstile && turnstileWidgetId !== null) window.turnstile.reset(turnstileWidgetId);
+            return;
+          }
+          if (input) input.value = "";
+          if (window.turnstile && turnstileWidgetId !== null) window.turnstile.reset(turnstileWidgetId);
+          showToast("解鎖成功，本週可用 " + data.limit + " 次");
+          refreshQuota();
+        } catch (error) {
+          showToast("解鎖失敗（網絡問題）", "error");
+        }
+      }
+
+      /* ---------- v3：追問（follow-up） ---------- */
+
+      const FOLLOWUP_MAX_CHARS = 3000;
+
+      function followupSystemPrompt() {
+        return [
+          "你是紫微斗數牌卡解讀師的「追問模式」。",
+          "",
+          "硬性規則：",
+          "1. 只回答使用者今次問的那個問題。不要重寫、不要摘要、不要重複原本的七段解讀。",
+          "2. 必須沿用原本解讀的牌組（主星／輔星／長生）與結論，保持前後一致；若新問題與原解讀有矛盾，先用一句指出差異，再解釋。",
+          "3. 長度按問題難度調整：簡單問題 1–3 句；中等 1–2 段；複雜可分點解釋。**全文最多 " + FOLLOWUP_MAX_CHARS + " 個中文字**，超過就要精簡。",
+          "4. 不要用「### 1.」這種固定段落標題；用短段落或條列。",
+          "5. 避免恐嚇、宿命論、絕對化預言；不提供醫療、法律、投資的具體決策建議。",
+          "6. 若問題與紫微斗數無關，先用一句說明，再用牌組象徵給出可行的建議。",
+          "7. 用繁體中文（台灣用語），語氣溫暖、務實、可執行。",
+          "8. 如果使用者問的是程式碼／編程／除錯／演算法／數學計算／解方程／功課解題，**不要解答、不要給出程式碼或算式**；用一兩句說明「本服務只做紫微斗數牌卡解讀，不處理程式或數學問題」，然後把話題帶回牌組象徵與他現實的處境。",
+          "9. 每次回答最多 " + FOLLOWUP_MAX_CHARS + " 個中文字；問題簡單就簡短，不要為了長而長。"
+        ].join("\n");
+      }
+
+      const BLOCKED_TOPIC_PATTERNS = [
+        /\b(python|javascript|typescript|java|c\+\+|c#|html|css|sql|regex|api|bug|debug|algorithm|function|code|coding|compile|npm|json)\b/i,
+        /(程式|程序|代碼|編程|编程|函數|函数|演算法|演算法|正則|正则|除錯|调试|編譯|编译|資料庫|数据库)/,
+        /(數學|数学|微積分|微积分|微分|積分|积分|方程式|方程組|方程组|三角函數|矩阵|矩陣|證明題|证明题|幾何題|几何题|機率題|概率題)/,
+        /[0-9]+\s*[\+\-\*\/\^]\s*[0-9]+\s*=/,
+        /(solve|calculate)\s+.*[0-9]/i
+      ];
+
+      /* 回傳 true = 屬於「程式／數學／功課」，本服務不處理 */
+      function isBlockedQuestion(text) {
+        if (!CONFIG.FOLLOWUP_BLOCK_TOPICS) return false;
+        const q = String(text || "");
+        return BLOCKED_TOPIC_PATTERNS.some((re) => re.test(q));
+      }
+
+      function buildFollowupMessages(question) {
+        const sel = state.readingSelection || state.selection || {};
+        let original = state.lastMarkdown || "";
+        if (original.length > CONFIG.FOLLOWUP_CONTEXT_MAX) {
+          original = original.slice(0, CONFIG.FOLLOWUP_CONTEXT_MAX) + "\n（原文過長，已截斷）";
+        }
+        const context = [
+          "【本次牌組】",
+          "主星：" + (sel.main || "未選"),
+          "輔星：" + (sel.support || "未選"),
+          "長生：" + (sel.life || "未選"),
+          "",
+          "【原本的解讀（完整保留，請不要重寫或改動它的意思）】",
+          original,
+          "",
+          "【使用者追問】",
+          question
+        ].join("\n");
+        return [
+          { role: "system", content: followupSystemPrompt() },
+          { role: "user", content: context }
+        ];
+      }
+
+      async function requestFollowup(messages, onDelta) {
+        const mode = keyMode();
+        const useProxy = mode === "proxy";
+        const headers = { "Content-Type": "application/json" };
+        if (useProxy) {
+          if (sessionToken) headers["x-zwds-session"] = sessionToken;
+        } else {
+          headers.Authorization = "Bearer " + getApiKey();
+        }
+        const url = useProxy ? proxyBase() + "/chat" : API_ENDPOINT;
+        const response = await fetch(url, {
+          method: "POST",
+          headers: headers,
+          body: JSON.stringify({
+            session: useProxy ? sessionToken : undefined,
+            model: API_MODEL,
+            messages: messages,
+            temperature: CONFIG.TEMPERATURE,
+            top_p: 0.95,
+            max_tokens: 4000,
+            stream: true,
+            thinking: { type: CONFIG.THINKING }
+          })
+        });
+
+        if (!response.ok) {
+          let data = null;
+          try { data = await response.json(); } catch (error) { data = null; }
+          const code = data && data.error && data.error.code ? String(data.error.code) : "http";
+          const message = data && data.error && data.error.message ? String(data.error.message) : ("HTTP " + response.status);
+          const failure = new AppError(message, code === "session_required" ? "session" : (code === "quota_exhausted" || code === "global_blocked" ? "quota" : "http"));
+          failure.httpStatus = response.status;
+          throw failure;
+        }
+
+        const streamed = await readStream(response, onDelta);
+        if (!streamed || !streamed.content.trim()) throw new AppError("AI 回傳了空白內容，請再試。", "empty");
+        return streamed.content.trim();
+      }
+
+      function renderFollowupList() {
+        const list = document.getElementById("followupList");
+        if (!list) return;
+        list.textContent = "";
+        (state.followups || []).forEach((item) => {
+          const card = document.createElement("div");
+          card.className = "followup-item";
+          const q = document.createElement("div");
+          q.className = "q";
+          q.textContent = "你問：" + item.q;
+          const a = document.createElement("div");
+          a.className = "a";
+          a.innerHTML = renderMarkdown(item.a || "");
+          card.appendChild(q);
+          card.appendChild(a);
+          list.appendChild(card);
+        });
+        const box = document.getElementById("followupBox");
+        if (box) box.hidden = false;
+      }
+
+      async function askFollowup() {
+        if (state.followingUp) return;
+        const input = document.getElementById("followupInput");
+        const status = document.getElementById("followupStatus");
+        const question = input ? String(input.value || "").trim() : "";
+        if (!question) { showToast("請先輸入想問嘅問題", "error"); return; }
+        if (!state.lastMarkdown) { showToast("請先完成一次解讀", "error"); return; }
+        if (isBlockedQuestion(question)) {
+          if (status) status.textContent = "本服務只做紫微斗數／牌卡解讀，唔接受程式碼、數學題或功課解題。試下改問：「那我今年的事業方向怎樣？」";
+          showToast("唔支援程式／數學／功課問題", "error");
+          return;
+        }
+        if (gateNeeded()) { showGate(); return; }
+
+        const list = document.getElementById("followupList");
+        const card = document.createElement("div");
+        card.className = "followup-item";
+        const q = document.createElement("div");
+        q.className = "q";
+        q.textContent = "你問：" + question;
+        const a = document.createElement("div");
+        a.className = "a";
+        a.dataset.streaming = "1";
+        card.appendChild(q);
+        card.appendChild(a);
+        if (list) list.appendChild(card);
+        if (input) input.value = "";
+
+        state.followingUp = true;
+        if (status) status.textContent = "正在回答…（按難度調整長度，最多 3000 字）";
+        const btn = document.getElementById("followupBtn");
+        if (btn) btn.disabled = true;
+
+        let latest = "";
+        let timer = 0;
+        const onDelta = (text) => {
+          latest = text;
+          if (timer) return;
+          timer = window.setTimeout(() => {
+            timer = 0;
+            a.innerHTML = renderMarkdown(latest);
+            a.dataset.streaming = "1";
+          }, 110);
+        };
+
+        try {
+          const answer = await requestFollowup(buildFollowupMessages(question), onDelta);
+          a.innerHTML = renderMarkdown(answer);
+          delete a.dataset.streaming;
+          state.followups = (state.followups || []).concat([{ q: question, a: answer, at: Date.now() }]);
+          if (state.currentHistoryAt) {
+            const list2 = loadHistory();
+            const entry = list2.find((x) => x.at === state.currentHistoryAt);
+            if (entry) { entry.followups = state.followups; saveHistory(list2); }
+          }
+          if (status) status.textContent = "已回答。可以繼續追問。";
+        } catch (error) {
+          const normalized = normalizeError(error);
+          a.innerHTML = renderMarkdown("（回答失敗：" + normalized.message + "）");
+          delete a.dataset.streaming;
+          if (status) status.textContent = "失敗：" + normalized.message;
+          if (normalized.code === "session") { sessionToken = ""; showGate(); }
+          if (normalized.code === "quota") { refreshQuota(); openSettings(); }
+        } finally {
+          state.followingUp = false;
+          if (btn) btn.disabled = false;
+        }
+      }
+
+      /* 對外暴露少量內部函式，供離線自動測試使用（不影響一般操作） */
+      window.__zwdsInternals = Object.freeze({
+        version: CONFIG.APP_VERSION,
+        buildPrompt: buildPrompt,
+        renderMarkdown: renderMarkdown,
+        escapeHtml: escapeHtml,
+        parseSSELine: parseSSELine,
+        buildReadingRequest: buildReadingRequest,
+        maskKey: maskKey,
+        keyMode: keyMode,
+        VALID_CARDS: VALID_CARDS,
+        MAIN_STARS: MAIN_STARS,
+        DUAL_STARS: DUAL_STARS,
+        SUPPORT_CARDS: SUPPORT_CARDS,
+        LIFE_STAGES: LIFE_STAGES,
+        HISTORY_LIMIT: CONFIG.HISTORY_LIMIT
+      });
+
+      init();
+    })();
+  </script>
+
+  <!-- v2：解讀紀錄（只存本機，最多 20 筆） -->
+  <dialog class="settings" id="historyDialog" aria-labelledby="historyTitle">
+    <div class="dialog-head">
+      <div>
+        <h2 id="historyTitle">解讀紀錄</h2>
+        <p>只存在這部裝置，最多 20 筆</p>
+      </div>
+      <button class="icon-btn" id="closeHistoryBtn" type="button" aria-label="關閉解讀紀錄">✕</button>
+    </div>
+    <div class="settings-body">
+      <div class="history-list" id="historyList"></div>
+      <p class="kbd-note">紀錄存在 localStorage 的 <code>zwds.history</code>。按「刪除」只會移除該筆。</p>
+    </div>
+  </dialog>
+
+  <!-- v2.5：整站人機驗證（未通過不可用） -->
+  <div class="gate" id="gateOverlay" hidden role="dialog" aria-modal="true" aria-labelledby="gateTitle">
+    <div class="gate-card">
+      <h3 id="gateTitle">先完成人機驗證</h3>
+      <p class="hint">為防止濫用，使用前需要通過 Cloudflare 驗證。通過後 30 分鐘內免再驗。</p>
+      <input class="gate-name" id="gateName" type="text" maxlength="20" autocomplete="nickname"
+             placeholder="你的短名（1–20 字，例如 Kevin）" aria-label="你的短名" />
+      <div id="gateSlot"></div>
+      <p class="hint" id="gateStatus">驗證中…</p>
+      <button class="btn btn-primary" id="gateRetryBtn" type="button" hidden>重新驗證</button>
+    </div>
+  </div>
+</body>
+</html>
