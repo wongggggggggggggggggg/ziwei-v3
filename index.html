@@ -2175,6 +2175,15 @@
     }
     .hist-panel[data-open="1"] { transform: translateX(0); }
     .hist-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+    .hist-gate { margin-bottom: 10px; }
+    .hist-gate-title { margin: 0 0 2px; font-size: .9rem; font-weight: 700; }
+    .hist-gate-text { margin: 0 0 8px; font-size: .78rem; opacity: .7; line-height: 1.5; }
+    .hist-go {
+      width: 100%; margin-top: 8px; padding: .55rem .7rem; border: 0; border-radius: .6rem;
+      background: linear-gradient(135deg, #7c5cff, #5b8cff); color: #fff; font-size: .85rem;
+      font-weight: 600; cursor: pointer;
+    }
+    .hist-go:hover { filter: brightness(1.06); }
     .hist-search {
       width: 100%; box-sizing: border-box; padding: .55rem .7rem; border-radius: .6rem;
       border: 1px solid rgba(148, 163, 184, .5); background: transparent; color: inherit;
@@ -2194,10 +2203,18 @@
       padding-top: 8px; border-top: 1px solid rgba(148, 163, 184, .22); margin-top: 8px; font-size: .82rem;
     }
     .hist-arrow {
-      width: 32px; height: 32px; border-radius: 50%; border: 1px solid rgba(148, 163, 184, .45);
-      background: transparent; color: inherit; cursor: pointer; font-size: 1rem; line-height: 1;
+      width: 42px; height: 42px; border-radius: 50%; border: 1px solid rgba(148, 163, 184, .45);
+      background: transparent; color: inherit; cursor: pointer; font-size: 1.25rem; line-height: 1;
+      display: flex; align-items: center; justify-content: center;
     }
-    .hist-arrow:disabled { opacity: .35; cursor: default; }
+    .hist-arrow:hover:not(:disabled) { background: rgba(124, 92, 255, .12); border-color: #7c5cff; }
+    .hist-arrow:disabled { opacity: .3; cursor: default; }
+    .hist-pos {
+      min-width: 64px; text-align: center; font-variant-numeric: tabular-nums;
+      background: none; border: 0; color: inherit; cursor: pointer; font-size: .86rem;
+      padding: .3rem .4rem; border-radius: .5rem;
+    }
+    .hist-pos:hover { background: rgba(148, 163, 184, .14); }
     .hist-scrim { position: fixed; inset: 0; background: rgba(2, 6, 23, .45); z-index: 940; }
     .hist-scrim[hidden] { display: none; }
     .history-item .row { display: flex; gap: .4rem; margin-top: .55rem; flex-wrap: wrap; }
@@ -2599,8 +2616,8 @@
         FOLLOWUP_CONTEXT_MAX: 30000,   // 送給 AI 的原文上限（字元），超出會截斷
         FOLLOWUP_BLOCK_TOPICS: true,   // 拒答程式／數學／功課類問題
         STREAM: true,           // v2：串流輸出（逐字顯示）
-        APP_VERSION: "3.5.0",
-        HISTORY_LIMIT: 20
+        APP_VERSION: "3.6.0",
+        HISTORY_LIMIT: 2000
       });
 
       const API_ENDPOINT = "https://api.deepseek.com/chat/completions";
@@ -2678,6 +2695,7 @@
         drawMode: "click",
         historyIndex: 0,
         chatId: "",
+        histShowAll: false,
         followups: [],
         readingSelection: null,
         currentHistoryAt: 0
@@ -3972,7 +3990,18 @@
       }
 
       function saveHistory(list) {
-        writeStorage(STORAGE_KEYS.history, JSON.stringify(list.slice(0, CONFIG.HISTORY_LIMIT)));
+        let items = list.slice(0, CONFIG.HISTORY_LIMIT);
+        const key = STORAGE_KEYS.history;
+        while (items.length) {
+          try {
+            window.localStorage.setItem(key, JSON.stringify(items));
+            return items.length;
+          } catch (error) {
+            if (items.length <= 1) return 0;
+            items = items.slice(0, Math.floor(items.length * 0.85));
+          }
+        }
+        return 0;
       }
 
       function pushHistory(entry) {
@@ -4373,6 +4402,33 @@
         if (histScrim) histScrim.addEventListener("click", closeHistPanel);
         const histSearch = document.getElementById("histSearch");
         if (histSearch) histSearch.addEventListener("input", renderHistPanel);
+
+        const histNameBtn = document.getElementById("histNameBtn");
+        const histNameInput = document.getElementById("histNameInput");
+        function applyHistName() {
+          const value = histNameInput ? sanitizeText(histNameInput.value, 20) : "";
+          if (!value) { showToast("請先輸入名字", "error"); return; }
+          try { window.localStorage.setItem("zwds.histname", value); } catch (error) { /* 忽略 */ }
+          state.histShowAll = false;
+          renderHistPanel();
+          showToast("已顯示 " + value + " 的紀錄");
+        }
+        if (histNameBtn) histNameBtn.addEventListener("click", applyHistName);
+        if (histNameInput) {
+          histNameInput.addEventListener("keydown", (event) => {
+            if (event.key === "Enter") { event.preventDefault(); applyHistName(); }
+          });
+        }
+
+        const histPos = document.getElementById("histPos");
+        if (histPos) {
+          histPos.addEventListener("click", () => {
+            if (!histViewName()) { showToast("請先輸入名字", "error"); return; }
+            state.histShowAll = !state.histShowAll;
+            renderHistPanel();
+            showToast(state.histShowAll ? "顯示全部紀錄" : "只顯示我的紀錄");
+          });
+        }
         const histPrev = document.getElementById("histPrev");
         if (histPrev) histPrev.addEventListener("click", () => stepHistory(-1));
         const histNext = document.getElementById("histNext");
@@ -4852,10 +4908,18 @@
 
       /* ---------- v3.4：浮動歷史側欄 ---------- */
 
+      function histViewName() {
+        try { return String(window.localStorage.getItem("zwds.histname") || "").trim(); } catch (error) { return ""; }
+      }
+
       function histItems() {
         const searchEl = document.getElementById("histSearch");
         const q = searchEl ? String(searchEl.value || "").trim().toLowerCase() : "";
         let list = loadHistory();
+        const who = histViewName();
+        if (who && !state.histShowAll) {
+          list = list.filter((item) => String(item.name || "").toLowerCase() === who.toLowerCase());
+        }
         if (q) list = list.filter((item) => JSON.stringify(item).toLowerCase().indexOf(q) !== -1);
         return list;
       }
@@ -4863,7 +4927,28 @@
       function renderHistPanel() {
         const box = document.getElementById("histList");
         const posEl = document.getElementById("histPos");
+        const gate = document.getElementById("histGate");
         if (!box) return;
+
+        const who = histViewName();
+        if (!who) {
+          if (gate) gate.hidden = false;
+          box.textContent = "";
+          const hint = document.createElement("p");
+          hint.className = "hist-empty";
+          hint.textContent = "輸入名字後才會顯示紀錄。";
+          box.appendChild(hint);
+          if (posEl) posEl.textContent = "0 / 0";
+          const p0 = document.getElementById("histPrev");
+          const n0 = document.getElementById("histNext");
+          if (p0) p0.disabled = true;
+          if (n0) n0.disabled = true;
+          return;
+        }
+        if (gate) gate.hidden = true;
+        const nameEl = document.getElementById("histNameInput");
+        if (nameEl) nameEl.value = who;
+
         const list = histItems();
         box.textContent = "";
 
@@ -5013,11 +5098,18 @@
       <strong>解讀歷史</strong>
       <button class="icon-btn" id="histClose" type="button" aria-label="關閉">✕</button>
     </div>
+    <div class="hist-gate" id="histGate">
+      <p class="hist-gate-title">先輸入你的名字</p>
+      <p class="hist-gate-text">為保護私隱，未輸入名字之前唔會顯示任何紀錄。</p>
+      <input class="hist-search" id="histNameInput" type="text" maxlength="20" placeholder="你的名字（例如 Kevin）" aria-label="你的名字" />
+      <button class="hist-go" id="histNameBtn" type="button">查看我的紀錄</button>
+    </div>
+
     <input class="hist-search" id="histSearch" type="text" maxlength="60" placeholder="搜尋名字／牌名／追問…" aria-label="搜尋歷史" />
     <div class="hist-list" id="histList"></div>
     <div class="hist-nav">
       <button class="hist-arrow" id="histPrev" type="button" aria-label="上一筆">‹</button>
-      <span id="histPos">0 / 0</span>
+      <button class="hist-pos" id="histPos" type="button" title="顯示全部紀錄">0 / 0</button>
       <button class="hist-arrow" id="histNext" type="button" aria-label="下一筆">›</button>
     </div>
   </aside>
