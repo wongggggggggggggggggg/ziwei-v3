@@ -2617,7 +2617,7 @@
         FOLLOWUP_CONTEXT_MAX: 30000,   // 送給 AI 的原文上限（字元），超出會截斷
         FOLLOWUP_BLOCK_TOPICS: true,   // 拒答程式／數學／功課類問題
         STREAM: true,           // v2：串流輸出（逐字顯示）
-        APP_VERSION: "3.6.2",
+        APP_VERSION: "3.6.3",
         HISTORY_LIMIT: 2000
       });
 
@@ -5019,6 +5019,7 @@
           btn.type = "button";
           btn.className = "hist-item";
           btn.dataset.active = String(item.at === state.currentHistoryAt);
+          btn.dataset.index = String(index);
           const title = document.createElement("strong");
           title.textContent = (item.name || "未命名") + " · " + formatTimeCn(item.at);
           const meta = document.createElement("span");
@@ -5037,7 +5038,10 @@
         });
 
         state.historyIndex = current >= 0 ? current : Math.min(state.historyIndex || 0, list.length - 1);
-        if (posEl) posEl.textContent = (state.historyIndex + 1) + " / " + list.length;
+        if (posEl) {
+          posEl.textContent = (state.historyIndex + 1) + " / " + list.length + (state.histShowAll ? "（全部）" : "");
+          posEl.title = state.histShowAll ? "目前顯示全部，點擊改為只看我的" : "點擊顯示全部紀錄";
+        }
         const prev = document.getElementById("histPrev");
         const next = document.getElementById("histNext");
         if (prev) prev.disabled = state.historyIndex <= 0;
@@ -5087,6 +5091,69 @@
           .slice(0, max);
       }
 
+      /* ---------- v3.6.3：歷史面板全事件委派 ---------- */
+
+      function isHistPanelOpen() {
+        const panel = document.getElementById("histPanel");
+        return Boolean(panel && panel.dataset && panel.dataset.open === "1");
+      }
+
+      function insideHistPanel(node) {
+        let el = node;
+        while (el) {
+          if (el.id === "histPanel") return true;
+          el = el.parentNode;
+        }
+        return false;
+      }
+
+      document.addEventListener("click", function (event) {
+        const target = event.target;
+        if (!target || !target.id) {
+          if (isHistPanelOpen() && !insideHistPanel(target)) closeHistPanel();
+          return;
+        }
+        if (target.id === "histClose" || target.id === "histScrim") {
+          event.preventDefault();
+          closeHistPanel();
+          return;
+        }
+        if (target.id === "histPrev") { event.preventDefault(); stepHistory(-1); return; }
+        if (target.id === "histNext") { event.preventDefault(); stepHistory(1); return; }
+        if (target.id === "histPos") {
+          event.preventDefault();
+          if (!histViewName()) { showToast("請先輸入名字", "error"); return; }
+          state.histShowAll = !state.histShowAll;
+          renderHistPanel();
+          showToast(state.histShowAll ? "顯示全部紀錄" : "只顯示我的紀錄");
+          return;
+        }
+        if (target.classList && target.classList.contains("hist-item")) {
+          const idx = Number(target.dataset.index || "-1");
+          const list = histItems();
+          if (list[idx]) {
+            event.preventDefault();
+            loadHistoryItem(list[idx]);
+            state.historyIndex = idx;
+            renderHistPanel();
+            closeHistPanel();
+            showToast("已載入：" + (list[idx].name || "未命名"));
+          }
+          return;
+        }
+        if (isHistPanelOpen() && !insideHistPanel(target)) closeHistPanel();
+      }, true);
+
+      document.addEventListener("input", function (event) {
+        const target = event.target;
+        if (target && target.id === "histSearch") renderHistPanel();
+      }, true);
+
+      document.addEventListener("keydown", function (event) {
+        if (event.key !== "Escape") return;
+        if (isHistPanelOpen()) { event.preventDefault(); closeHistPanel(); }
+      }, true);
+
       /* ---------- v3.6.2：歷史名稱閘門（全域委派，最穩） ---------- */
 
       function readGateName() {
@@ -5121,6 +5188,7 @@
         window.clearTimeout(state.histGateTimer || 0);
         state.histGateTimer = window.setTimeout(function () {
           state.histName = sanitizeText(target.value, 20);
+          state.histShowAll = false;
           try { window.localStorage.setItem("zwds.histname", state.histName); } catch (error) { /* 忽略 */ }
           renderHistPanel();
         }, 250);
