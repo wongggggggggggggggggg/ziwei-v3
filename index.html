@@ -2216,8 +2216,9 @@
       padding: .3rem .4rem; border-radius: .5rem;
     }
     .hist-pos:hover { background: rgba(148, 163, 184, .14); }
-    .hist-scrim { position: fixed; inset: 0; background: rgba(2, 6, 23, .45); z-index: 940; }
-    .hist-scrim[hidden] { display: none; }
+    .hist-scrim { position: fixed; inset: 0; background: rgba(2, 6, 23, .45); z-index: 940; display: none; }
+    .hist-panel[data-open="1"] ~ .hist-scrim { display: block; }
+    .hist-panel:not([data-open="1"]) { pointer-events: none; }
     .history-item .row { display: flex; gap: .4rem; margin-top: .55rem; flex-wrap: wrap; }
     .history-empty { font-size: .9rem; opacity: .7; margin: 0; }
     .kbd-note { font-size: .78rem; opacity: .65; margin: .5rem 0 0; }
@@ -2617,7 +2618,7 @@
         FOLLOWUP_CONTEXT_MAX: 30000,   // 送給 AI 的原文上限（字元），超出會截斷
         FOLLOWUP_BLOCK_TOPICS: true,   // 拒答程式／數學／功課類問題
         STREAM: true,           // v2：串流輸出（逐字顯示）
-        APP_VERSION: "3.6.4",
+        APP_VERSION: "3.6.5",
         HISTORY_LIMIT: 2000
       });
 
@@ -4480,6 +4481,7 @@
             if (event.key === "Enter") { event.preventDefault(); unlockQuota(); }
           });
         }
+        resetHistPanelState();
         loadTurnstile();
         const gateNameInput = document.getElementById("gateName");
         if (gateNameInput) {
@@ -4597,6 +4599,14 @@
         const status = document.getElementById("gateStatus");
         if (status) status.textContent = "請完成下方驗證…";
         renderGateTurnstile();
+      }
+
+      function resetHistPanelState() {
+        const panel = document.getElementById("histPanel");
+        const scrim = document.getElementById("histScrim");
+        if (panel) panel.dataset.open = "0";
+        if (scrim) scrim.hidden = true;
+        document.body.style.overflow = "";
       }
 
       function hideGate() {
