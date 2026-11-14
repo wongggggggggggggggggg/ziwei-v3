@@ -57,12 +57,18 @@
   .lg.reading { background: #7c5cff; }
   .lg.followup { background: #f59e0b; }
   .chart-foot { color: var(--dim); font-size: .76rem; margin-top: 6px; }
-  canvas { width: 100%; display: block; }
+  canvas { width: 100%; display: block; height: 200px; }
   .rank-row { display: flex; align-items: center; gap: 10px; margin: 7px 0; font-size: .83rem; }
   .rank-name { width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .rank-bar { flex: 1; height: 9px; background: rgba(148,163,184,.14); border-radius: 999px; overflow: hidden; }
   .rank-bar > i { display: block; height: 100%; background: linear-gradient(90deg,#7c5cff,#5b8cff); border-radius: 999px; }
   .rank-val { width: 64px; text-align: right; color: var(--dim); }
+  .chatbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  .chat-item { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin: 8px 0; cursor: pointer; }
+  .chat-item:hover { background: rgba(124,92,255,.07); }
+  .chat-item b { font-size: .86rem; }
+  .chat-item span { display: block; color: var(--dim); font-size: .76rem; margin-top: 2px; }
+  .chat-detail { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 12px; }
   .tabs { display: flex; gap: 6px; margin: 6px 0 14px; flex-wrap: wrap; }
   .tab { background: transparent; border: 1px solid var(--line); color: var(--dim); padding: 7px 14px;
     border-radius: 999px; font-size: .82rem; cursor: pointer; width: auto; margin: 0; }
@@ -140,6 +146,7 @@
     <div class="tabs" role="tablist">
       <button class="tab" role="tab" id="tabVisitors" aria-selected="true" type="button">訪客</button>
       <button class="tab" role="tab" id="tabEvents" aria-selected="false" type="button">事件</button>
+      <button class="tab" role="tab" id="tabChats" aria-selected="false" type="button">對話紀錄</button>
       <button class="tab" role="tab" id="tabRaw" aria-selected="false" type="button">原始 JSON</button>
     </div>
 
@@ -148,6 +155,15 @@
     <div class="card">
       <div id="paneVisitors"></div>
       <div id="paneEvents" class="hidden"></div>
+      <div id="paneChats" class="hidden">
+        <div class="chatbar">
+          <button class="ghost" id="loadChatsBtn" type="button">載入對話</button>
+          <button class="ghost" id="downloadAllBtn" type="button">下載全部 .md</button>
+          <span class="chart-foot" id="chatsHint">按「載入對話」讀取。</span>
+        </div>
+        <div id="chatList"></div>
+        <div id="chatView"></div>
+      </div>
       <div id="paneRaw" class="hidden"></div>
     </div>
 
@@ -159,10 +175,12 @@
 (function () {
   "use strict";
 
-  var API = "https://ziwe-kevin.www-wongkevin404.workers.dev/visitors";
+  var WORKER = "https://ziwe-kevin.www-wongkevin404.workers.dev";
+  var API = WORKER + "/visitors";
+  var API_BASE = WORKER;
   var ADMIN_USER = "kevin";
   var KEY_STORE = "zwds.admin.key";
-  var state = { key: "", data: null, tab: "visitors" };
+  var state = { key: "", data: null, tab: "visitors", chats: [] };
 
   function $(id) { return document.getElementById(id); }
 
@@ -187,6 +205,8 @@
     $("tabEvents").setAttribute("aria-selected", String(name === "events"));
     $("tabRaw").setAttribute("aria-selected", String(name === "raw"));
     $("paneVisitors").classList.toggle("hidden", name !== "visitors");
+    $("paneChats").classList.toggle("hidden", name !== "chats");
+    $("tabChats").setAttribute("aria-selected", String(name === "chats"));
     $("paneEvents").classList.toggle("hidden", name !== "events");
     $("paneRaw").classList.toggle("hidden", name !== "raw");
   }
@@ -207,6 +227,7 @@
     var dpr = window.devicePixelRatio || 1;
     var w = canvas.clientWidth || canvas.parentElement.clientWidth || 320;
     var h = Number(canvas.getAttribute("height")) || 200;
+    canvas.style.height = h + "px";
     canvas.width = Math.round(w * dpr);
     canvas.height = Math.round(h * dpr);
     var ctx = canvas.getContext("2d");
@@ -330,11 +351,113 @@
     box.innerHTML = html;
   }
 
+  function chatsUrl(path) {
+    return API_BASE + path + "?key=" + encodeURIComponent(state.key);
+  }
+
+  function loadChats() {
+    var box = $("chatList");
+    var hint = $("chatsHint");
+    if (!box) return;
+    box.innerHTML = '<div class="empty">載入中…</div>';
+    fetch(chatsUrl("/chats"), { headers: { accept: "application/json" } })
+      .then(function (r) { return r.json().then(function (b) { return { ok: r.ok, b: b }; }); })
+      .then(function (res) {
+        if (!res.ok) throw new Error((res.b && res.b.error && res.b.error.message) || "載入失敗");
+        var items = (res.b && res.b.items) || [];
+        state.chats = items;
+        if (!items.length) { box.innerHTML = '<div class="empty">未有對話紀錄（做一次解讀之後就會出現）。</div>'; return; }
+        var html = "";
+        items.slice().reverse().forEach(function (it) {
+          var kind = it.kind === "followup" ? "追問" : "解讀";
+          html += '<div class="chat-item" data-id="' + esc(it.id) + '"><b>' + esc(it.name || "（未填）") +
+            " · " + esc(kind) + "</b><span>" + esc(fmt(it.t)) + " · " +
+            esc([it.main, it.support, it.life].filter(Boolean).join("／") || "—") + " · " +
+            esc(it.mode === "random" ? "隨機" : "自選") +
+            (it.qlen ? " · 問題 " + it.qlen + " 字" : "") +
+            (it.mlen ? " · 解讀 " + it.mlen + " 字" : "") + "</span></div>";
+        });
+        box.innerHTML = html;
+        Array.prototype.forEach.call(box.querySelectorAll(".chat-item"), function (el) {
+          el.addEventListener("click", function () { openChat(el.getAttribute("data-id")); });
+        });
+        if (hint) hint.textContent = "共 " + items.length + " 筆（最近 200 筆）。";
+      })
+      .catch(function (e) { box.innerHTML = '<div class="empty">' + esc(e.message) + "</div>"; });
+  }
+
+  function openChat(id) {
+    var view = $("chatView");
+    if (!view) return;
+    view.innerHTML = '<div class="empty">載入中…</div>';
+    fetch(chatsUrl("/chatitem") + "&id=" + encodeURIComponent(id), { headers: { accept: "application/json" } })
+      .then(function (r) { return r.json().then(function (b) { return { ok: r.ok, b: b }; }); })
+      .then(function (res) {
+        if (!res.ok) throw new Error((res.b && res.b.error && res.b.error.message) || "載入失敗");
+        var it = res.b.item || {};
+        var parts = ['<div class="chat-detail">'];
+        parts.push("<b>" + esc(it.name || "（未填）") + "</b> · " + esc(fmt(it.t)) + " · " +
+          esc([it.main, it.support, it.life].filter(Boolean).join("／")) + " · " +
+          esc(it.mode === "random" ? "隨機抽牌" : "手動選擇"));
+        if (it.question) parts.push("<p><b>問：</b>" + esc(it.question) + "</p>");
+        if (it.answer) parts.push("<pre>" + esc(it.answer) + "</pre>");
+        if (it.markdown) parts.push("<p class='chart-foot'>解讀全文（" + it.markdown.length + " 字）</p><pre>" + esc(it.markdown) + "</pre>");
+        parts.push('<p><button class="ghost" id="dlOne" type="button">下載這筆 .md</button></p></div>');
+        view.innerHTML = parts.join("");
+        var dl = document.getElementById("dlOne");
+        if (dl) dl.addEventListener("click", function () { downloadChat(it); });
+      })
+      .catch(function (e) { view.innerHTML = '<div class="empty">' + esc(e.message) + "</div>"; });
+  }
+
+  function chatToMarkdown(it) {
+    var lines = [];
+    lines.push("# 紫微斗數 AI 解牌 · " + (it.name || "未填"));
+    lines.push("");
+    lines.push("- 時間：" + fmt(it.t));
+    lines.push("- 牌組：" + [it.main, it.support, it.life].filter(Boolean).join("／"));
+    lines.push("- 抽牌方式：" + (it.mode === "random" ? "隨機抽牌" : "手動選擇"));
+    if (it.markdown) { lines.push(""); lines.push("---"); lines.push(""); lines.push(it.markdown); }
+    if (it.question) { lines.push(""); lines.push("## 追問"); lines.push(""); lines.push("**問：** " + it.question); lines.push(""); lines.push(it.answer || ""); }
+    return lines.join("\n");
+  }
+
+  function saveText(text, name) {
+    var blob = new Blob([text], { type: "text/markdown;charset=utf-8" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 3000);
+  }
+
+  function downloadChat(it) {
+    saveText(chatToMarkdown(it), "zwds-" + (it.name || "chat") + "-" + String(it.id).replace(/[:]/g, "-") + ".md");
+  }
+
+  function downloadAllChats() {
+    var items = state.chats || [];
+    if (!items.length) { alert("未有對話，先按「載入對話」。"); return; }
+    var texts = new Array(items.length);
+    var done = 0;
+    items.forEach(function (meta, i) {
+      fetch(chatsUrl("/chatitem") + "&id=" + encodeURIComponent(meta.id), { headers: { accept: "application/json" } })
+        .then(function (r) { return r.json(); })
+        .then(function (b) { texts[i] = chatToMarkdown(b.item || meta); })
+        .catch(function () { texts[i] = chatToMarkdown(meta); })
+        .then(function () {
+          done += 1;
+          if (done === items.length) saveText(texts.join("\n\n---\n\n"), "zwds-all-chats.md");
+        });
+    });
+  }
   function renderCharts() {
     var events = (state.data && Array.isArray(state.data.events)) ? state.data.events : [];
-    drawDaily(events);
-    drawMode(events);
-    drawRank(events);
+    window.requestAnimationFrame(function () {
+      drawDaily(events);
+      drawMode(events);
+      drawRank(events);
+    });
   }
 
   function render() {
@@ -470,6 +593,9 @@
   $("tabVisitors").addEventListener("click", function () { setTab("visitors"); });
   $("tabEvents").addEventListener("click", function () { setTab("events"); });
   $("tabRaw").addEventListener("click", function () { setTab("raw"); });
+  $("tabChats").addEventListener("click", function () { setTab("chats"); loadChats(); });
+  $("loadChatsBtn").addEventListener("click", loadChats);
+  $("downloadAllBtn").addEventListener("click", downloadAllChats);
 
   window.addEventListener("resize", function () {
     if (state.data) renderCharts();
