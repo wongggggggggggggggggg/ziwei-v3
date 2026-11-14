@@ -44,6 +44,9 @@ function corsHeaders(origin) {
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Access-Control-Max-Age": "86400",
     "Access-Control-Expose-Headers": "x-quota-remaining, x-global-remaining",
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "no-referrer",
+    "X-Frame-Options": "DENY",
     Vary: "Origin"
   };
 }
@@ -105,6 +108,7 @@ async function writeGlobal(env, value) {
 }
 
 async function recordVisitor(env, ip, name) {
+  name = cleanText(name, 20);
   if (!env.ZWDS_KV) return;
   const key = "v:" + weekKey();
   let list = [];
@@ -135,16 +139,24 @@ async function recordEvent(env, ip, name, event) {
     t: Date.now(),
     ip: ip,
     name: name || "",
-    kind: String(event.kind || "unknown").slice(0, 20),
-    main: String(event.main || "").slice(0, 20),
-    support: String(event.support || "").slice(0, 20),
-    life: String(event.life || "").slice(0, 20),
-    mode: String(event.mode || "").slice(0, 10),
-    question: String(event.question || "").slice(0, 300)
+    kind: cleanText(event.kind || "unknown", 20),
+    main: cleanText(event.main, 20),
+    support: cleanText(event.support, 20),
+    life: cleanText(event.life, 20),
+    mode: cleanText(event.mode, 10),
+    question: cleanText(event.question, 300)
   });
   if (list.length > 500) list = list.slice(-500);
   await env.ZWDS_KV.put(key, JSON.stringify(list), { expirationTtl: 30 * 86400 });
   if (name) await env.ZWDS_KV.put("n:" + ip, name, { expirationTtl: 30 * 86400 });
+}
+
+function cleanText(value, max) {
+  return String(value == null ? "" : value)
+    .replace(/[\u0000-\u001f\u007f]/g, "")
+    .replace(/[<>]/g, "")
+    .trim()
+    .slice(0, max);
 }
 
 function maskIp(ip) {
@@ -280,11 +292,19 @@ export default {
 
     /* ---- 訪客紀錄（需要 key；預設用 UNLOCK_PASSWORD） ---- */
     if (request.method === "GET" && url.pathname === "/visitors") {
-      const expected = env.ADMIN_PASSWORD || env.UNLOCK_PASSWORD || "";
-      if (!expected) return fail("未設定管理密碼", 503, origin, "no_admin");
-      if (!safeEqual(url.searchParams.get("key") || "", expected)) {
-        return fail("未授權（key 不正確）", 401, origin, "auth");
+      const allowedKeys = [env.ADMIN_PASSWORD, env.UNLOCK_PASSWORD].filter(Boolean);
+      if (!allowedKeys.length) return fail("未設定管理密碼", 503, origin, "no_admin");
+
+      if (!rateOk("vis:" + ip, 12, 60000)) {
+        return fail("嘗試太頻繁，請一分鐘後再試", 429, origin, "rate");
       }
+
+      const givenKey = String(url.searchParams.get("key") || "").slice(0, 128);
+      let keyOk = false;
+      for (let i = 0; i < allowedKeys.length; i += 1) {
+        if (safeEqual(givenKey, allowedKeys[i])) { keyOk = true; break; }
+      }
+      if (!keyOk) return fail("未授權（key 不正確）", 401, origin, "auth");
       let list = [];
       if (env.ZWDS_KV) {
         try {
@@ -354,7 +374,7 @@ export default {
       if (!ts.ok) {
         return fail("人機驗證失敗" + (ts.error ? "（" + ts.error + "）" : ""), 400, origin, "turnstile");
       }
-      const name = String((body && body.name) || "").trim().slice(0, 20);
+      const name = cleanText(body && body.name, 20);
       if (!name) {
         return fail("請先輸入一個短名（1–20 字）", 400, origin, "name_required");
       }
