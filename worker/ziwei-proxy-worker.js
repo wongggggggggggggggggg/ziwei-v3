@@ -21,7 +21,7 @@ const ALLOWED_ORIGINS = [
 ];
 
 const ALLOWED_MODELS = ["deepseek-flash", "deepseek-v4-pro"];
-const MAX_TOKENS_CAP = 4096;
+const MAX_TOKENS_CAP = 8192;  // v3.7：容許追問回覆到約 5000 中文字
 const WEEKLY_MAX = 10;      // 每人每週免費次數
 const UNLOCK_BONUS = 10;    // 每次解鎖：個人 +10
 const GLOBAL_WEEKLY_MAX = 40;    // 全站每週總次數（所有 IP 合計），超過即全站封鎖
