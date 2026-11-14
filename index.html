@@ -2599,7 +2599,7 @@
         FOLLOWUP_CONTEXT_MAX: 30000,   // 送給 AI 的原文上限（字元），超出會截斷
         FOLLOWUP_BLOCK_TOPICS: true,   // 拒答程式／數學／功課類問題
         STREAM: true,           // v2：串流輸出（逐字顯示）
-        APP_VERSION: "3.4.0",
+        APP_VERSION: "3.5.0",
         HISTORY_LIMIT: 20
       });
 
@@ -2677,6 +2677,7 @@
         followingUp: false,
         drawMode: "click",
         historyIndex: 0,
+        chatId: "",
         followups: [],
         readingSelection: null,
         currentHistoryAt: 0
@@ -3486,6 +3487,7 @@
         };
         const prompt = buildPrompt(requestSelection);
 
+        state.chatId = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
         state.readingSelection = { main: requestSelection.main, support: requestSelection.support, life: requestSelection.life };
         state.followups = [];
         state.currentHistoryAt = 0;
@@ -3541,8 +3543,10 @@
 
           sendEvent({
             kind: "reading",
+            sid: state.chatId,
             main: requestSelection.main, support: requestSelection.support, life: requestSelection.life,
-            mode: state.drawMode
+            mode: state.drawMode,
+            markdown: state.lastMarkdown
           });
           showToast("解讀完成，願你看見自己的光");
         } catch (error) {
@@ -4824,7 +4828,14 @@
             if (entry) { entry.followups = state.followups; saveHistory(list2); }
           }
           const selNow = selectionOf(null);
-          sendEvent({ kind: "followup", question: question, main: selNow.main, support: selNow.support, life: selNow.life, mode: state.drawMode });
+          sendEvent({
+            kind: "followup",
+            sid: state.chatId,
+            question: question,
+            answer: answer,
+            main: selNow.main, support: selNow.support, life: selNow.life,
+            mode: state.drawMode
+          });
           if (status) status.textContent = "已回答。可以繼續追問。";
         } catch (error) {
           const normalized = normalizeError(error);
