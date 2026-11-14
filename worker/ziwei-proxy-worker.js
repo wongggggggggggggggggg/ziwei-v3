@@ -366,7 +366,11 @@ export default {
       }, 200, origin);
     }
 
-    if (request.method !== "POST") return fail("只接受 POST", 405, origin, "method");
+    if (request.method !== "POST") {
+      const isAdminGet = request.method === "GET" &&
+        (url.pathname === "/chats" || url.pathname === "/chatitem");
+      if (!isAdminGet) return fail("只接受 POST", 405, origin, "method");
+    }
 
     /* ---- 解鎖碼 ---- */
     if (url.pathname === "/unlock") {
