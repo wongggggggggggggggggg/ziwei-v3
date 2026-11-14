@@ -2158,6 +2158,48 @@
     .history-item h4 { margin: 0 0 .25rem; font-size: .95rem; }
     .history-item p { margin: 0; font-size: .8rem; opacity: .72; }
     .history-excerpt { margin: .35rem 0 0 !important; font-size: .82rem !important; opacity: .8 !important; line-height: 1.55; }
+    .hist-fab {
+      position: fixed; right: 18px; bottom: 18px; z-index: 900;
+      width: 52px; height: 52px; border-radius: 50%; border: 0; cursor: pointer;
+      background: linear-gradient(135deg, #7c5cff, #5b8cff); color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 10px 28px rgba(92, 80, 255, .38);
+      transition: transform .15s ease;
+    }
+    .hist-fab:hover { transform: translateY(-2px) scale(1.03); }
+    .hist-panel {
+      position: fixed; top: 0; right: 0; bottom: 0; width: 340px; max-width: 88vw; z-index: 950;
+      background: var(--surface, #fff); border-left: 1px solid rgba(148, 163, 184, .3);
+      transform: translateX(104%); transition: transform .22s ease;
+      display: flex; flex-direction: column; padding: 14px 14px 10px;
+    }
+    .hist-panel[data-open="1"] { transform: translateX(0); }
+    .hist-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+    .hist-search {
+      width: 100%; box-sizing: border-box; padding: .55rem .7rem; border-radius: .6rem;
+      border: 1px solid rgba(148, 163, 184, .5); background: transparent; color: inherit;
+      font-size: .85rem; margin-bottom: 10px;
+    }
+    .hist-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+    .hist-item {
+      text-align: left; border: 1px solid rgba(148, 163, 184, .3); border-radius: .7rem;
+      padding: .55rem .65rem; background: transparent; color: inherit; cursor: pointer; font-size: .83rem;
+    }
+    .hist-item[data-active="1"] { border-color: #7c5cff; background: rgba(124, 92, 255, .08); }
+    .hist-item strong { display: block; font-size: .86rem; margin-bottom: 2px; }
+    .hist-item span { display: block; opacity: .7; font-size: .76rem; }
+    .hist-empty { opacity: .65; font-size: .82rem; text-align: center; padding: 22px 0; }
+    .hist-nav {
+      display: flex; align-items: center; justify-content: center; gap: 14px;
+      padding-top: 8px; border-top: 1px solid rgba(148, 163, 184, .22); margin-top: 8px; font-size: .82rem;
+    }
+    .hist-arrow {
+      width: 32px; height: 32px; border-radius: 50%; border: 1px solid rgba(148, 163, 184, .45);
+      background: transparent; color: inherit; cursor: pointer; font-size: 1rem; line-height: 1;
+    }
+    .hist-arrow:disabled { opacity: .35; cursor: default; }
+    .hist-scrim { position: fixed; inset: 0; background: rgba(2, 6, 23, .45); z-index: 940; }
+    .hist-scrim[hidden] { display: none; }
     .history-item .row { display: flex; gap: .4rem; margin-top: .55rem; flex-wrap: wrap; }
     .history-empty { font-size: .9rem; opacity: .7; margin: 0; }
     .kbd-note { font-size: .78rem; opacity: .65; margin: .5rem 0 0; }
@@ -2557,7 +2599,7 @@
         FOLLOWUP_CONTEXT_MAX: 30000,   // 送給 AI 的原文上限（字元），超出會截斷
         FOLLOWUP_BLOCK_TOPICS: true,   // 拒答程式／數學／功課類問題
         STREAM: true,           // v2：串流輸出（逐字顯示）
-        APP_VERSION: "3.3.0",
+        APP_VERSION: "3.4.0",
         HISTORY_LIMIT: 20
       });
 
@@ -2634,6 +2676,7 @@
         lastErrorCode: "",
         followingUp: false,
         drawMode: "click",
+        historyIndex: 0,
         followups: [],
         readingSelection: null,
         currentHistoryAt: 0
@@ -4287,6 +4330,12 @@
       function bindV2Events() {
         if (elsV2.historyBtn) elsV2.historyBtn.addEventListener("click", openHistory);
         if (elsV2.closeHistoryBtn) elsV2.closeHistoryBtn.addEventListener("click", closeHistory);
+        if (elsV2.historyBtn) {
+          elsV2.historyBtn.addEventListener("click", (event) => {
+            if (event) { event.preventDefault(); event.stopPropagation(); }
+            openHistPanel();
+          }, true);
+        }
         const historySearch = document.getElementById("historySearch");
         if (historySearch) historySearch.addEventListener("input", renderHistory);
         if (elsV2.downloadBtn) elsV2.downloadBtn.addEventListener("click", downloadReading);
@@ -4311,6 +4360,19 @@
             if (event.key === "Enter") { event.preventDefault(); askFollowup(); }
           });
         }
+
+        const histFab = document.getElementById("histFab");
+        if (histFab) histFab.addEventListener("click", openHistPanel);
+        const histClose = document.getElementById("histClose");
+        if (histClose) histClose.addEventListener("click", closeHistPanel);
+        const histScrim = document.getElementById("histScrim");
+        if (histScrim) histScrim.addEventListener("click", closeHistPanel);
+        const histSearch = document.getElementById("histSearch");
+        if (histSearch) histSearch.addEventListener("input", renderHistPanel);
+        const histPrev = document.getElementById("histPrev");
+        if (histPrev) histPrev.addEventListener("click", () => stepHistory(-1));
+        const histNext = document.getElementById("histNext");
+        if (histNext) histNext.addEventListener("click", () => stepHistory(1));
 
         const gateRetry = document.getElementById("gateRetryBtn");
         if (gateRetry) {
@@ -4394,7 +4456,7 @@
       async function onGateSuccess(token) {
         const status = document.getElementById("gateStatus");
         const nameInput = document.getElementById("gateName");
-        const name = nameInput ? String(nameInput.value || "").trim() : "";
+        const name = nameInput ? sanitizeText(nameInput.value, 20) : "";
 
         if (!name) {
           if (status) status.textContent = "請先輸入一個短名（1–20 字），再等一下驗證完成";
@@ -4709,7 +4771,7 @@
         if (state.followingUp) return;
         const input = document.getElementById("followupInput");
         const status = document.getElementById("followupStatus");
-        const question = input ? String(input.value || "").trim() : "";
+        const question = input ? sanitizeText(input.value, 300) : "";
         if (!question) { showToast("請先輸入想問嘅問題", "error"); return; }
         if (!state.lastMarkdown) { showToast("請先完成一次解讀", "error"); return; }
         if (isBlockedQuestion(question)) {
@@ -4777,6 +4839,101 @@
         }
       }
 
+      /* ---------- v3.4：浮動歷史側欄 ---------- */
+
+      function histItems() {
+        const searchEl = document.getElementById("histSearch");
+        const q = searchEl ? String(searchEl.value || "").trim().toLowerCase() : "";
+        let list = loadHistory();
+        if (q) list = list.filter((item) => JSON.stringify(item).toLowerCase().indexOf(q) !== -1);
+        return list;
+      }
+
+      function renderHistPanel() {
+        const box = document.getElementById("histList");
+        const posEl = document.getElementById("histPos");
+        if (!box) return;
+        const list = histItems();
+        box.textContent = "";
+
+        if (!list.length) {
+          const empty = document.createElement("p");
+          empty.className = "hist-empty";
+          empty.textContent = "暫時未有紀錄。完成一次解讀就會出現。";
+          box.appendChild(empty);
+          if (posEl) posEl.textContent = "0 / 0";
+          return;
+        }
+
+        const current = list.findIndex((item) => item.at === state.currentHistoryAt);
+        list.forEach((item, index) => {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "hist-item";
+          btn.dataset.active = String(item.at === state.currentHistoryAt);
+          const title = document.createElement("strong");
+          title.textContent = (item.name || "未命名") + " · " + formatTimeCn(item.at);
+          const meta = document.createElement("span");
+          meta.textContent = (item.main || "?") + "／" + (item.support || "?") + "／" + (item.life || "?") +
+            " · 追問 " + ((item.followups || []).length) + " 條";
+          btn.appendChild(title);
+          btn.appendChild(meta);
+          btn.addEventListener("click", () => {
+            loadHistoryItem(item);
+            state.historyIndex = index;
+            renderHistPanel();
+            closeHistPanel();
+            showToast("已載入：" + (item.name || "未命名"));
+          });
+          box.appendChild(btn);
+        });
+
+        state.historyIndex = current >= 0 ? current : Math.min(state.historyIndex || 0, list.length - 1);
+        if (posEl) posEl.textContent = (state.historyIndex + 1) + " / " + list.length;
+        const prev = document.getElementById("histPrev");
+        const next = document.getElementById("histNext");
+        if (prev) prev.disabled = state.historyIndex <= 0;
+        if (next) next.disabled = state.historyIndex >= list.length - 1;
+      }
+
+      function openHistPanel() {
+        const panel = document.getElementById("histPanel");
+        const scrim = document.getElementById("histScrim");
+        if (!panel) return;
+        panel.dataset.open = "1";
+        panel.setAttribute("aria-hidden", "false");
+        if (scrim) scrim.hidden = false;
+        renderHistPanel();
+      }
+
+      function closeHistPanel() {
+        const panel = document.getElementById("histPanel");
+        const scrim = document.getElementById("histScrim");
+        if (!panel) return;
+        panel.dataset.open = "0";
+        panel.setAttribute("aria-hidden", "true");
+        if (scrim) scrim.hidden = true;
+      }
+
+      function stepHistory(delta) {
+        const list = histItems();
+        if (!list.length) return;
+        const next = Math.max(0, Math.min(list.length - 1, (state.historyIndex || 0) + delta));
+        if (!list[next]) return;
+        loadHistoryItem(list[next]);
+        state.historyIndex = next;
+        renderHistPanel();
+      }
+
+      /* 輸入清洗：移除控制字元與尖括號，限制長度 */
+      function sanitizeText(value, max) {
+        return String(value == null ? "" : value)
+          .replace(/[\u0000-\u001f\u007f]/g, "")
+          .replace(/[<>]/g, "")
+          .trim()
+          .slice(0, max);
+      }
+
       /* 對外暴露少量內部函式，供離線自動測試使用（不影響一般操作） */
       window.__zwdsInternals = Object.freeze({
         version: CONFIG.APP_VERSION,
@@ -4830,5 +4987,29 @@
 
   <!-- v3.2：列印 / 存 PDF 專用 -->
   <div id="printArea" aria-hidden="true"></div>
+
+  <!-- v3.4：浮動歷史按鈕 + 側欄 -->
+  <button class="hist-fab" id="histFab" type="button" aria-label="解讀歷史" title="解讀歷史">
+    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+      <path d="M12 8v5l3.5 2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+      <path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+      <path d="M3 4.5v4h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+  </button>
+
+  <aside class="hist-panel" id="histPanel" aria-hidden="true" aria-label="解讀歷史">
+    <div class="hist-head">
+      <strong>解讀歷史</strong>
+      <button class="icon-btn" id="histClose" type="button" aria-label="關閉">✕</button>
+    </div>
+    <input class="hist-search" id="histSearch" type="text" maxlength="60" placeholder="搜尋名字／牌名／追問…" aria-label="搜尋歷史" />
+    <div class="hist-list" id="histList"></div>
+    <div class="hist-nav">
+      <button class="hist-arrow" id="histPrev" type="button" aria-label="上一筆">‹</button>
+      <span id="histPos">0 / 0</span>
+      <button class="hist-arrow" id="histNext" type="button" aria-label="下一筆">›</button>
+    </div>
+  </aside>
+  <div class="hist-scrim" id="histScrim" hidden></div>
 </body>
 </html>
