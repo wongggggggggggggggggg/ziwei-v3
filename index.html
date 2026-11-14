@@ -2157,6 +2157,7 @@
     }
     .history-item h4 { margin: 0 0 .25rem; font-size: .95rem; }
     .history-item p { margin: 0; font-size: .8rem; opacity: .72; }
+    .history-excerpt { margin: .35rem 0 0 !important; font-size: .82rem !important; opacity: .8 !important; line-height: 1.55; }
     .history-item .row { display: flex; gap: .4rem; margin-top: .55rem; flex-wrap: wrap; }
     .history-empty { font-size: .9rem; opacity: .7; margin: 0; }
     .kbd-note { font-size: .78rem; opacity: .65; margin: .5rem 0 0; }
@@ -2204,6 +2205,19 @@
     .gate-name:focus { outline: 2px solid #6366f1; outline-offset: 1px; }
     #gateRetryBtn { margin-top: .4rem; }
     #gateRetryBtn[hidden] { display: none; }
+    #printArea { display: none; }
+    @media print {
+      body > *:not(#printArea) { display: none !important; }
+      #printArea { display: block !important; color: #111; background: #fff; padding: 0 6mm; }
+      #printArea h1 { font-size: 20pt; margin: 0 0 4mm; }
+      #printArea h2 { font-size: 14pt; margin: 6mm 0 2mm; border-bottom: 1px solid #ddd; padding-bottom: 1mm; }
+      #printArea h3 { font-size: 12pt; margin: 4mm 0 1.5mm; }
+      #printArea .meta { font-size: 9.5pt; color: #555; margin-bottom: 5mm; line-height: 1.7; }
+      #printArea .qa { margin: 3mm 0; padding-left: 3mm; border-left: 2px solid #ddd; }
+      #printArea .q { font-weight: 700; }
+      #printArea .foot { margin-top: 8mm; font-size: 8.5pt; color: #777; }
+      @page { margin: 14mm; }
+    }
   </style>
 </head>
 <body>
@@ -2366,6 +2380,9 @@
             複製
           </button>
           <button class="btn btn-ghost btn-sm" id="downloadBtn" type="button" disabled>下載 .md</button>
+          <button class="btn btn-ghost btn-sm" id="printBtn" type="button" disabled>列印 / 存 PDF</button>
+          <button class="btn btn-ghost btn-sm" id="importBtn" type="button">匯入 .md</button>
+          <input type="file" id="importFile" accept=".md,.markdown,.txt,.json" hidden />
         </div>
       </div>
 
@@ -2534,7 +2551,7 @@
         FOLLOWUP_CONTEXT_MAX: 30000,   // 送給 AI 的原文上限（字元），超出會截斷
         FOLLOWUP_BLOCK_TOPICS: true,   // 拒答程式／數學／功課類問題
         STREAM: true,           // v2：串流輸出（逐字顯示）
-        APP_VERSION: "3.1.0",
+        APP_VERSION: "3.2.0",
         HISTORY_LIMIT: 20
       });
 
@@ -2610,6 +2627,7 @@
         themeTimer: null,
         lastErrorCode: "",
         followingUp: false,
+        drawMode: "click",
         followups: [],
         readingSelection: null,
         currentHistoryAt: 0
@@ -2860,6 +2878,7 @@
         if (state.isReading) return;
         if (!KINDS.includes(kind) || !VALID_CARDS[kind].includes(name)) return;
 
+        state.drawMode = "click";
         state.selection[kind] = state.selection[kind] === name ? null : name;
         syncSelectionUI(kind);
         persistSelection();
@@ -2939,6 +2958,7 @@
       function drawRandomCards() {
         if (state.isReading) return;
 
+        state.drawMode = "random";
         state.selection.main = randomItem(ALL_MAIN_CARDS);
         state.selection.support = randomItem(SUPPORT_CARDS);
         state.selection.life = randomItem(LIFE_STAGES);
@@ -3379,6 +3399,8 @@
         if (elsV2 && elsV2.downloadBtn) {
           elsV2.downloadBtn.disabled = name !== "success" || !state.lastMarkdown;
         }
+        const printBtnEl = document.getElementById("printBtn");
+        if (printBtnEl) printBtnEl.disabled = name !== "success" || !state.lastMarkdown;
       }
 
       function showError(message, code) {
@@ -3455,6 +3477,9 @@
           state.currentHistoryAt = Date.now();
           pushHistory({
             at: Date.now(),
+            name: playerName(),
+            mode: state.drawMode,
+            followups: [],
             main: requestSelection.main,
             support: requestSelection.support,
             life: requestSelection.life,
@@ -3464,6 +3489,11 @@
             version: CONFIG.APP_VERSION
           });
 
+          sendEvent({
+            kind: "reading",
+            main: requestSelection.main, support: requestSelection.support, life: requestSelection.life,
+            mode: state.drawMode
+          });
           showToast("解讀完成，願你看見自己的光");
         } catch (error) {
           const normalized = normalizeError(error);
@@ -3919,6 +3949,11 @@
         persistSelection();
         updateSummary();
         state.lastMarkdown = item.markdown;
+        state.readingSelection = { main: item.main, support: item.support, life: item.life };
+        state.drawMode = item.mode === "random" ? "random" : "click";
+        state.followups = Array.isArray(item.followups) ? item.followups : [];
+        state.currentHistoryAt = item.at;
+        renderFollowupList();
         els.markdownOut.innerHTML = renderMarkdown(item.markdown);
         if (elsV2.truncationNote) elsV2.truncationNote.hidden = true;
         setResultState("success");
@@ -3934,16 +3969,69 @@
         showToast("已刪除該筆紀錄");
       }
 
+      function plainExcerpt(markdown, max) {
+        return String(markdown || "")
+          .replace(/[#*_>`\-]/g, " ")
+          .replace(/\s+/g, " ")
+          .trim()
+          .slice(0, max || 90);
+      }
+
+      function buildItemMarkdown(item) {
+        const lines = [];
+        lines.push("# 紫微斗數 AI 解牌 · 解讀紀錄");
+        lines.push("");
+        lines.push("- 名字：" + (item.name || "（未填）"));
+        lines.push("- 日期：" + formatTimeCn(item.at));
+        lines.push("- 主星：" + item.main + "／輔星：" + item.support + "／長生：" + item.life);
+        lines.push("- 抽牌方式：" + (item.mode === "random" ? "隨機抽牌" : "手動選擇"));
+        lines.push("");
+        lines.push("---");
+        lines.push("");
+        lines.push(item.markdown || "");
+        (item.followups || []).forEach((f, i) => {
+          lines.push("");
+          lines.push("### 問 " + (i + 1) + "：" + f.q);
+          lines.push("");
+          lines.push(f.a || "");
+        });
+        lines.push("");
+        lines.push("> 本解讀由 AI 生成，僅供參考與自我探索，不構成醫療、法律或投資建議。");
+        return lines.join("\n");
+      }
+
+      function downloadItem(item) {
+        const text = buildItemMarkdown(item);
+        const stamp = new Date(item.at || Date.now()).toISOString().replace(/[:.]/g, "-").slice(0, 19);
+        const blob = new Blob([text], { type: "text/markdown;charset=utf-8" });
+        const url = window.URL && window.URL.createObjectURL
+          ? window.URL.createObjectURL(blob)
+          : "data:text/markdown;charset=utf-8," + encodeURIComponent(text);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = "ziwei-" + (item.name || "reading") + "-" + stamp + ".md";
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        if (window.URL && window.URL.revokeObjectURL) window.setTimeout(() => window.URL.revokeObjectURL(url), 4000);
+        showToast("已下載該筆紀錄");
+      }
+
       function renderHistory() {
         const box = elsV2.historyList;
         if (!box) return;
-        const list = loadHistory();
+        const searchEl = document.getElementById("historySearch");
+        const q = searchEl ? String(searchEl.value || "").trim().toLowerCase() : "";
+        let list = loadHistory();
+        if (q) {
+          list = list.filter((item) => JSON.stringify(item).toLowerCase().indexOf(q) !== -1);
+        }
         box.textContent = "";
 
         if (!list.length) {
           const empty = document.createElement("p");
           empty.className = "history-empty";
-          empty.textContent = "暫時未有紀錄。完成一次解讀後會自動出現。";
+          empty.textContent = q ? "冇符合「" + q + "」的紀錄。" : "暫時未有紀錄。完成一次解讀後會自動出現。";
           box.appendChild(empty);
           return;
         }
@@ -3953,42 +4041,40 @@
           card.className = "history-item";
 
           const title = document.createElement("h4");
-          title.textContent = item.main + " · " + item.support + " · " + item.life;
+          title.textContent = (item.name || "未命名") + " · " + formatTimeCn(item.at);
 
           const meta = document.createElement("p");
-          meta.textContent = formatTime(item.at) + " · " + (item.model || API_MODEL) +
-            (item.truncated ? " · 可能被截斷" : "");
+          meta.textContent =
+            (item.main || "?") + "／" + (item.support || "?") + "／" + (item.life || "?") +
+            " · " + (item.mode === "random" ? "隨機" : "自選") +
+            " · 追問 " + ((item.followups || []).length) + " 條";
+
+          const excerpt = document.createElement("p");
+          excerpt.className = "history-excerpt";
+          excerpt.textContent = plainExcerpt(item.markdown, 90);
 
           const row = document.createElement("div");
           row.className = "row";
 
-          const openBtn = document.createElement("button");
-          openBtn.type = "button";
-          openBtn.className = "btn btn-ghost btn-sm";
-          openBtn.textContent = "載入";
-          openBtn.addEventListener("click", () => loadHistoryItem(item));
+          const mk = function (label, fn) {
+            const b = document.createElement("button");
+            b.type = "button";
+            b.className = "btn btn-ghost btn-sm";
+            b.textContent = label;
+            b.addEventListener("click", fn);
+            return b;
+          };
 
-          const copyBtn = document.createElement("button");
-          copyBtn.type = "button";
-          copyBtn.className = "btn btn-ghost btn-sm";
-          copyBtn.textContent = "複製";
-          copyBtn.addEventListener("click", () => {
-            copyText(item.markdown).then((ok) => {
-              showToast(ok ? "已複製" : "複製失敗", ok ? "success" : "error");
-            });
-          });
+          row.appendChild(mk("載入", () => loadHistoryItem(item)));
+          row.appendChild(mk("複製", () => {
+            copyText(buildItemMarkdown(item)).then((ok) => showToast(ok ? "已複製" : "複製失敗", ok ? "success" : "error"));
+          }));
+          row.appendChild(mk("下載", () => downloadItem(item)));
+          row.appendChild(mk("刪除", () => deleteHistoryItem(item.at)));
 
-          const delBtn = document.createElement("button");
-          delBtn.type = "button";
-          delBtn.className = "btn btn-ghost btn-sm";
-          delBtn.textContent = "刪除";
-          delBtn.addEventListener("click", () => deleteHistoryItem(item.at));
-
-          row.appendChild(openBtn);
-          row.appendChild(copyBtn);
-          row.appendChild(delBtn);
           card.appendChild(title);
           card.appendChild(meta);
+          card.appendChild(excerpt);
           card.appendChild(row);
           box.appendChild(card);
         });
@@ -4014,20 +4100,165 @@
         }
       }
 
+      function playerName() {
+        try { return window.localStorage.getItem("zwds.name") || ""; } catch (error) { return ""; }
+      }
+
+      function selectionOf(item) {
+        const sel = (item && item.selection) || state.readingSelection || state.selection || {};
+        return { main: sel.main || "—", support: sel.support || "—", life: sel.life || "—" };
+      }
+
+      function formatTimeCn(ts) {
+        const d = new Date(ts || Date.now());
+        const p = (n) => (n < 10 ? "0" : "") + n;
+        return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) + " " + p(d.getHours()) + ":" + p(d.getMinutes());
+      }
+
+      /* 送使用紀錄（唔扣額度） */
+      function sendEvent(payload) {
+        if (keyMode() !== "proxy" || !CONFIG.PROXY_URL) return;
+        try {
+          fetch(proxyBase() + "/event", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(Object.assign({ session: sessionToken, name: playerName() }, payload))
+          }).catch(() => { /* 忽略 */ });
+        } catch (error) { /* 忽略 */ }
+      }
+
+      /* 產生可「再匯入」的 Markdown */
+      function buildExportMarkdown() {
+        const sel = selectionOf(null);
+        const meta = {
+          name: playerName(),
+          at: state.currentHistoryAt || Date.now(),
+          selection: sel,
+          mode: state.drawMode,
+          version: CONFIG.APP_VERSION,
+          markdown: state.lastMarkdown || "",
+          followups: state.followups || []
+        };
+        const lines = [];
+        lines.push("<!-- ZWDS-META " + JSON.stringify(meta).replace(/-->/g, "-- >") + " -->");
+        lines.push("");
+        lines.push("# 紫微斗數 AI 解牌 · 解讀紀錄");
+        lines.push("");
+        lines.push("- 名字：" + (meta.name || "（未填）"));
+        lines.push("- 日期：" + formatTimeCn(meta.at));
+        lines.push("- 主星：" + sel.main + "／輔星：" + sel.support + "／長生：" + sel.life);
+        lines.push("- 抽牌方式：" + (meta.mode === "random" ? "隨機抽牌" : "手動選擇"));
+        lines.push("- 版本：v" + CONFIG.APP_VERSION);
+        lines.push("");
+        lines.push("---");
+        lines.push("");
+        lines.push(meta.markdown || "");
+        if ((state.followups || []).length) {
+          lines.push("");
+          lines.push("---");
+          lines.push("");
+          lines.push("## 追問");
+          state.followups.forEach((f, i) => {
+            lines.push("");
+            lines.push("### 問 " + (i + 1) + "：" + f.q);
+            lines.push("");
+            lines.push(f.a || "");
+          });
+        }
+        lines.push("");
+        lines.push("> 本解讀由 AI 生成，僅供參考與自我探索，不構成醫療、法律或投資建議。");
+        return lines.join("\n");
+      }
+
       function downloadReading() {
-        if (!state.lastMarkdown) return;
+        if (!state.lastMarkdown) { showToast("未有解讀內容", "error"); return; }
         const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-        const header = "<!-- 紫微斗數 AI 解牌 v" + CONFIG.APP_VERSION + " · " + stamp + " -->\n";
-        const blob = new Blob([header + state.lastMarkdown + "\n"], { type: "text/markdown;charset=utf-8" });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = "ziwei-reading-" + stamp + ".md";
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        window.setTimeout(() => URL.revokeObjectURL(url), 4000);
-        showToast("已下載 Markdown 檔");
+        const text = buildExportMarkdown();
+        const fileName = "ziwei-reading-" + stamp + ".md";
+        try {
+          const blob = new Blob([text], { type: "text/markdown;charset=utf-8" });
+          const url = (window.URL && window.URL.createObjectURL)
+            ? window.URL.createObjectURL(blob)
+            : "data:text/markdown;charset=utf-8," + encodeURIComponent(text);
+          const link = document.createElement("a");
+          link.href = url;
+          link.download = fileName;
+          link.rel = "noopener";
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+          if (window.URL && window.URL.revokeObjectURL) window.setTimeout(() => window.URL.revokeObjectURL(url), 4000);
+          showToast("已下載 " + fileName);
+        } catch (error) {
+          showToast("下載失敗：" + (error && error.message ? error.message : "未知錯誤"), "error");
+        }
+      }
+
+      /* 匯入 .md（可重新載入之前下載的檔案） */
+      function importFile(file) {
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          const text = String(reader.result || "");
+          let meta = null;
+          const m = text.match(/<!--\s*ZWDS-META\s*([\s\S]*?)\s*-->/);
+          if (m) {
+            try { meta = JSON.parse(m[1]); } catch (error) { meta = null; }
+          }
+          if (meta && typeof meta.markdown === "string" && meta.markdown.trim()) {
+            const sel = meta.selection || {};
+            state.selection = { main: sel.main && sel.main !== "—" ? sel.main : null, support: sel.support && sel.support !== "—" ? sel.support : null, life: sel.life && sel.life !== "—" ? sel.life : null };
+            KINDS.forEach(syncSelectionUI);
+            updateSummary();
+            state.readingSelection = state.selection;
+            state.drawMode = meta.mode === "random" ? "random" : "click";
+            state.lastMarkdown = meta.markdown;
+            state.followups = Array.isArray(meta.followups) ? meta.followups : [];
+            state.currentHistoryAt = meta.at || Date.now();
+            els.markdownOut.innerHTML = renderMarkdown(state.lastMarkdown);
+            setResultState("success");
+            renderFollowupList();
+            if (elsV2.downloadBtn) elsV2.downloadBtn.disabled = false;
+            const printBtn = document.getElementById("printBtn");
+            if (printBtn) printBtn.disabled = false;
+            scrollToResult();
+            showToast("已匯入：" + (meta.name || "未命名") + "（" + formatTimeCn(meta.at) + "）");
+            return;
+          }
+          /* 冇 JSON 區塊：當普通 Markdown 顯示 */
+          state.lastMarkdown = text.trim();
+          state.followups = [];
+          els.markdownOut.innerHTML = renderMarkdown(state.lastMarkdown);
+          setResultState("success");
+          renderFollowupList();
+          showToast("已載入 Markdown（未能識別牌組）");
+        };
+        reader.onerror = () => showToast("讀取檔案失敗", "error");
+        reader.readAsText(file, "utf-8");
+      }
+
+      /* 列印 / 存 PDF */
+      function printReading() {
+        if (!state.lastMarkdown) { showToast("未有解讀內容", "error"); return; }
+        const area = document.getElementById("printArea");
+        if (!area) return;
+        const sel = selectionOf(null);
+        const parts = [];
+        parts.push('<h1>紫微斗數 AI 解牌 · 解讀紀錄</h1>');
+        parts.push('<div class="meta">');
+        parts.push("名字：" + escapeHtml(playerName() || "（未填）") + "　·　日期：" + formatTimeCn(state.currentHistoryAt || Date.now()) + "<br />");
+        parts.push("主星：" + escapeHtml(sel.main) + "　輔星：" + escapeHtml(sel.support) + "　長生：" + escapeHtml(sel.life) + "　·　" + (state.drawMode === "random" ? "隨機抽牌" : "手動選擇"));
+        parts.push("</div>");
+        parts.push(renderMarkdown(state.lastMarkdown));
+        if ((state.followups || []).length) {
+          parts.push("<h2>追問</h2>");
+          state.followups.forEach((f) => {
+            parts.push('<div class="qa"><div class="q">問：' + escapeHtml(f.q) + "</div>" + renderMarkdown(f.a || "") + "</div>");
+          });
+        }
+        parts.push('<div class="foot">本解讀由 AI 生成（v' + escapeHtml(CONFIG.APP_VERSION) + '），僅供參考與自我探索，不構成醫療、法律或投資建議。</div>');
+        area.innerHTML = parts.join("");
+        window.setTimeout(() => window.print(), 120);
       }
 
       /* 內嵌金鑰 + 公開網址 = 金鑰等於公開。這裡主動示警。 */
@@ -4049,7 +4280,21 @@
       function bindV2Events() {
         if (elsV2.historyBtn) elsV2.historyBtn.addEventListener("click", openHistory);
         if (elsV2.closeHistoryBtn) elsV2.closeHistoryBtn.addEventListener("click", closeHistory);
+        const historySearch = document.getElementById("historySearch");
+        if (historySearch) historySearch.addEventListener("input", renderHistory);
         if (elsV2.downloadBtn) elsV2.downloadBtn.addEventListener("click", downloadReading);
+
+        const printBtn = document.getElementById("printBtn");
+        if (printBtn) printBtn.addEventListener("click", printReading);
+        const importBtn = document.getElementById("importBtn");
+        const importFileInput = document.getElementById("importFile");
+        if (importBtn && importFileInput) {
+          importBtn.addEventListener("click", () => importFileInput.click());
+          importFileInput.addEventListener("change", () => {
+            if (importFileInput.files && importFileInput.files[0]) importFile(importFileInput.files[0]);
+            importFileInput.value = "";
+          });
+        }
 
         const followupBtn = document.getElementById("followupBtn");
         if (followupBtn) followupBtn.addEventListener("click", askFollowup);
@@ -4502,6 +4747,8 @@
             const entry = list2.find((x) => x.at === state.currentHistoryAt);
             if (entry) { entry.followups = state.followups; saveHistory(list2); }
           }
+          const selNow = selectionOf(null);
+          sendEvent({ kind: "followup", question: question, main: selNow.main, support: selNow.support, life: selNow.life, mode: state.drawMode });
           if (status) status.textContent = "已回答。可以繼續追問。";
         } catch (error) {
           const normalized = normalizeError(error);
@@ -4548,6 +4795,7 @@
       <button class="icon-btn" id="closeHistoryBtn" type="button" aria-label="關閉解讀紀錄">✕</button>
     </div>
     <div class="settings-body">
+      <input class="gate-name" id="historySearch" type="text" placeholder="搜尋：名字／牌名／追問內容…" aria-label="搜尋紀錄" />
       <div class="history-list" id="historyList"></div>
       <p class="kbd-note">紀錄存在 localStorage 的 <code>zwds.history</code>。按「刪除」只會移除該筆。</p>
     </div>
@@ -4565,5 +4813,8 @@
       <button class="btn btn-primary" id="gateRetryBtn" type="button" hidden>重新驗證</button>
     </div>
   </div>
+
+  <!-- v3.2：列印 / 存 PDF 專用 -->
+  <div id="printArea" aria-hidden="true"></div>
 </body>
 </html>
