@@ -467,7 +467,35 @@ export default {
             if (Array.isArray(raw)) list = raw;
           } catch (error) { list = []; }
         }
-        return json({ ok: true, week: weekKey(), count: list.length, items: list.slice(-200) }, 200, origin);
+        let fallback = false;
+        if (!list.length && env.ZWDS_KV) {
+          try {
+            const raw2 = await env.ZWDS_KV.get("ev:" + weekKey(), "json");
+            if (Array.isArray(raw2) && raw2.length) {
+              fallback = true;
+              list = raw2.map(function (e) {
+                return {
+                  id: "",
+                  t: e.t,
+                  name: e.name || "",
+                  kind: e.kind || "reading",
+                  main: e.main || "",
+                  support: e.support || "",
+                  life: e.life || "",
+                  mode: e.mode || "",
+                  ip: e.ip || "",
+                  qlen: (e.question || "").length,
+                  alen: 0,
+                  mlen: 0
+                };
+              });
+            }
+          } catch (error) { /* 忽略 */ }
+        }
+        return json({
+          ok: true, week: weekKey(), count: list.length, fallback: fallback,
+          items: list.slice(-200)
+        }, 200, origin);
       }
 
       const id = String(url.searchParams.get("id") || "").slice(0, 80);
