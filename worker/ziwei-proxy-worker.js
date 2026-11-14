@@ -122,6 +122,43 @@ async function recordVisitor(env, ip, name) {
   await env.ZWDS_KV.put("n:" + ip, name, { expirationTtl: 30 * 86400 });
 }
 
+async function saveChat(env, ip, name, body) {
+  if (!env.ZWDS_KV) return "";
+  const sid = (cleanText(body.sid, 24) || "anon").replace(/[^A-Za-z0-9_-]/g, "");
+  const id = sid + ":" + Date.now().toString(36);
+  const record = {
+    id: id,
+    sid: sid,
+    t: Date.now(),
+    ip: ip,
+    name: name,
+    kind: cleanText(body.kind, 20),
+    main: cleanText(body.main, 20),
+    support: cleanText(body.support, 20),
+    life: cleanText(body.life, 20),
+    mode: cleanText(body.mode, 10),
+    question: cleanText(body.question, 300),
+    answer: String(body.answer || "").slice(0, 8000),
+    markdown: String(body.markdown || "").slice(0, 40000)
+  };
+  await env.ZWDS_KV.put("ch:" + id, JSON.stringify(record), { expirationTtl: 30 * 86400 });
+
+  const idxKey = "cx:" + weekKey();
+  let list = [];
+  try {
+    const raw = await env.ZWDS_KV.get(idxKey, "json");
+    if (Array.isArray(raw)) list = raw;
+  } catch (error) { list = []; }
+  list.push({
+    id: id, sid: sid, t: record.t, ip: ip, name: name, kind: record.kind,
+    main: record.main, support: record.support, life: record.life, mode: record.mode,
+    qlen: record.question.length, alen: record.answer.length, mlen: record.markdown.length
+  });
+  if (list.length > 400) list = list.slice(-400);
+  await env.ZWDS_KV.put(idxKey, JSON.stringify(list), { expirationTtl: 30 * 86400 });
+  return id;
+}
+
 async function getVisitorName(env, ip) {
   if (!env.ZWDS_KV) return "";
   try { return (await env.ZWDS_KV.get("n:" + ip)) || ""; } catch (error) { return ""; }
@@ -399,9 +436,42 @@ export default {
       const sess = await checkSession(env, request.headers.get("x-zwds-session") || body2.session);
       if (!sess.ok) return fail("請先完成人機驗證", 401, origin, "session_required");
 
-      const name = String(body2.name || "").trim().slice(0, 20) || (await getVisitorName(env, ip));
+      const name = cleanText(body2.name, 20) || (await getVisitorName(env, ip));
       await recordEvent(env, ip, name, body2);
-      return json({ ok: true }, 200, origin);
+      const id = await saveChat(env, ip, name, body2);
+      return json({ ok: true, id: id }, 200, origin);
+    }
+
+    /* ---- 管理端：對話紀錄（需要 key） ---- */
+    if (request.method === "GET" && (url.pathname === "/chats" || url.pathname === "/chatitem")) {
+      const allowed = [env.ADMIN_PASSWORD, env.UNLOCK_PASSWORD].filter(Boolean);
+      if (!allowed.length) return fail("未設定管理密碼", 503, origin, "no_admin");
+      if (!rateOk("adm:" + ip, 30, 60000)) return fail("嘗試太頻繁，請一分鐘後再試", 429, origin, "rate");
+
+      const key = String(url.searchParams.get("key") || "").slice(0, 128);
+      let ok = false;
+      for (let i = 0; i < allowed.length; i += 1) {
+        if (safeEqual(key, allowed[i])) { ok = true; break; }
+      }
+      if (!ok) return fail("未授權（key 不正確）", 401, origin, "auth");
+
+      if (url.pathname === "/chats") {
+        let list = [];
+        if (env.ZWDS_KV) {
+          try {
+            const raw = await env.ZWDS_KV.get("cx:" + weekKey(), "json");
+            if (Array.isArray(raw)) list = raw;
+          } catch (error) { list = []; }
+        }
+        return json({ ok: true, week: weekKey(), count: list.length, items: list.slice(-200) }, 200, origin);
+      }
+
+      const id = String(url.searchParams.get("id") || "").slice(0, 80);
+      if (!/^[A-Za-z0-9_:-]{1,80}$/.test(id)) return fail("id 格式不正確", 400, origin, "id");
+      if (!env.ZWDS_KV) return fail("未設定 KV", 503, origin, "no_kv");
+      const raw = await env.ZWDS_KV.get("ch:" + id, "json");
+      if (!raw) return fail("找不到這筆紀錄", 404, origin, "notfound");
+      return json({ ok: true, item: raw }, 200, origin);
     }
 
     /* ---- 對話 ---- */
