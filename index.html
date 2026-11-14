@@ -2409,7 +2409,7 @@
           <!-- v3：追問 -->
           <div class="followup" id="followupBox" hidden>
             <h3>追問</h3>
-            <p class="hint">只回答你問嘅問題，唔會重寫上面嘅解讀；長度按難度調整（最多 3000 字）。每次追問計 1 次額度。</p>
+            <p class="hint">只回答你問嘅問題，唔會重寫上面嘅解讀；長度按難度調整（最多 5000 字）。每次追問計 1 次額度。</p>
             <p class="hint">⚠️ 只限紫微斗數／牌卡相關問題（<b>唔答程式碼、數學題、功課解題</b>）。</p>
             <div id="followupList"></div>
             <div class="key-field">
@@ -2530,11 +2530,11 @@
         TEMPERATURE: 0.85,      // 只在 thinking 關閉時有效
         THINKING: "disabled",   // v2.1：思考模式預設開啟會令 temperature 失效、變慢、變貴
         TURNSTILE_SITE_KEY: "0x4AAAAAAGA8l3vddzBzeEAu", // Cloudflare Turnstile Site Key（公開資料）
-        FOLLOWUP_MAX_CHARS: 3000,      // 追問答案上限（中文字）
+        FOLLOWUP_MAX_CHARS: 5000,      // 追問答案上限（中文字）
         FOLLOWUP_CONTEXT_MAX: 30000,   // 送給 AI 的原文上限（字元），超出會截斷
         FOLLOWUP_BLOCK_TOPICS: true,   // 拒答程式／數學／功課類問題
         STREAM: true,           // v2：串流輸出（逐字顯示）
-        APP_VERSION: "3.0.0",
+        APP_VERSION: "3.1.0",
         HISTORY_LIMIT: 20
       });
 
@@ -4405,7 +4405,7 @@
             messages: messages,
             temperature: CONFIG.TEMPERATURE,
             top_p: 0.95,
-            max_tokens: 4000,
+            max_tokens: 8000,
             stream: true,
             thinking: { type: CONFIG.THINKING }
           })
