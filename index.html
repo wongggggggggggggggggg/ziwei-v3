@@ -2165,6 +2165,12 @@
     .followup { margin-top: 1.6rem; border-top: 1px solid rgba(148, 163, 184, .3); padding-top: 1.1rem; }
     .followup[hidden] { display: none; }
     .followup h3 { font-size: 1rem; margin: 0 0 .25rem; }
+    .followup-count {
+      display: inline-block; min-width: 1.6rem; text-align: center; padding: .05rem .45rem;
+      border-radius: 999px; background: rgba(99, 102, 241, .16); color: #6366f1;
+      font-size: .85rem; font-weight: 700;
+    }
+    .followup-count-label { font-size: .8rem; opacity: .6; font-weight: 400; }
     .followup .hint { font-size: .8rem; opacity: .72; margin: .2rem 0 .6rem; }
     .followup-item {
       margin: .75rem 0; padding: .7rem .85rem; border-radius: .7rem;
@@ -2425,7 +2431,7 @@
 
           <!-- v3：追問 -->
           <div class="followup" id="followupBox" hidden>
-            <h3>追問</h3>
+            <h3>追問 <span class="followup-count" id="followupCount">0</span> <span class="followup-count-label">次</span></h3>
             <p class="hint">只回答你問嘅問題，唔會重寫上面嘅解讀；長度按難度調整（最多 5000 字）。每次追問計 1 次額度。</p>
             <p class="hint">⚠️ 只限紫微斗數／牌卡相關問題（<b>唔答程式碼、數學題、功課解題</b>）。</p>
             <div id="followupList"></div>
@@ -2551,7 +2557,7 @@
         FOLLOWUP_CONTEXT_MAX: 30000,   // 送給 AI 的原文上限（字元），超出會截斷
         FOLLOWUP_BLOCK_TOPICS: true,   // 拒答程式／數學／功課類問題
         STREAM: true,           // v2：串流輸出（逐字顯示）
-        APP_VERSION: "3.2.0",
+        APP_VERSION: "3.3.0",
         HISTORY_LIMIT: 20
       });
 
@@ -3444,6 +3450,7 @@
         if (followupList) followupList.textContent = "";
         const followupStatus = document.getElementById("followupStatus");
         if (followupStatus) followupStatus.textContent = "";
+        updateFollowupCount();
 
         state.lastMarkdown = "";
         els.markdownOut.innerHTML = "";
@@ -4671,7 +4678,13 @@
         return streamed.content.trim();
       }
 
+      function updateFollowupCount() {
+        const el = document.getElementById("followupCount");
+        if (el) el.textContent = String((state.followups || []).length);
+      }
+
       function renderFollowupList() {
+        updateFollowupCount();
         const list = document.getElementById("followupList");
         if (!list) return;
         list.textContent = "";
@@ -4742,6 +4755,7 @@
           a.innerHTML = renderMarkdown(answer);
           delete a.dataset.streaming;
           state.followups = (state.followups || []).concat([{ q: question, a: answer, at: Date.now() }]);
+          updateFollowupCount();
           if (state.currentHistoryAt) {
             const list2 = loadHistory();
             const entry = list2.find((x) => x.at === state.currentHistoryAt);
