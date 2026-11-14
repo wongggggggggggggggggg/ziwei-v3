@@ -226,7 +226,7 @@
   function fit(canvas) {
     var dpr = window.devicePixelRatio || 1;
     var w = canvas.clientWidth || canvas.parentElement.clientWidth || 320;
-    var h = Number(canvas.getAttribute("height")) || 200;
+    var h = Number(canvas.dataset.h || 200) || 200;
     canvas.style.height = h + "px";
     canvas.width = Math.round(w * dpr);
     canvas.height = Math.round(h * dpr);
@@ -238,6 +238,7 @@
   function drawDaily(events) {
     var canvas = $("chartDaily");
     if (!canvas) return;
+    canvas.dataset.h = "200";
     var days = [];
     var now = new Date();
     for (var i = 6; i >= 0; i -= 1) {
@@ -296,6 +297,7 @@
   function drawMode(events) {
     var canvas = $("chartMode");
     if (!canvas) return;
+    canvas.dataset.h = "200";
     var random = 0, click = 0;
     events.forEach(function (e) {
       if (e.kind !== "reading") return;
@@ -367,6 +369,9 @@
         var items = (res.b && res.b.items) || [];
         state.chats = items;
         if (!items.length) { box.innerHTML = '<div class="empty">未有對話紀錄（做一次解讀之後就會出現）。</div>'; return; }
+        if (res.b && res.b.fallback) {
+          box.innerHTML = '<div class="empty">以下係舊式事件（當時未有全文儲存）。做一次新解讀就會有完整對話。</div>';
+        }
         var html = "";
         items.slice().reverse().forEach(function (it) {
           var kind = it.kind === "followup" ? "追問" : "解讀";
@@ -377,7 +382,7 @@
             (it.qlen ? " · 問題 " + it.qlen + " 字" : "") +
             (it.mlen ? " · 解讀 " + it.mlen + " 字" : "") + "</span></div>";
         });
-        box.innerHTML = html;
+        box.innerHTML = (res.b && res.b.fallback ? box.innerHTML : "") + html;
         Array.prototype.forEach.call(box.querySelectorAll(".chat-item"), function (el) {
           el.addEventListener("click", function () { openChat(el.getAttribute("data-id")); });
         });
@@ -389,6 +394,7 @@
   function openChat(id) {
     var view = $("chatView");
     if (!view) return;
+    if (!id) { view.innerHTML = '<div class="empty">這筆係舊紀錄，未有全文（做一次新解讀就會有）。</div>'; return; }
     view.innerHTML = '<div class="empty">載入中…</div>';
     fetch(chatsUrl("/chatitem") + "&id=" + encodeURIComponent(id), { headers: { accept: "application/json" } })
       .then(function (r) { return r.json().then(function (b) { return { ok: r.ok, b: b }; }); })
