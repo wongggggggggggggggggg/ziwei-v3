@@ -2617,7 +2617,7 @@
         FOLLOWUP_CONTEXT_MAX: 30000,   // 送給 AI 的原文上限（字元），超出會截斷
         FOLLOWUP_BLOCK_TOPICS: true,   // 拒答程式／數學／功課類問題
         STREAM: true,           // v2：串流輸出（逐字顯示）
-        APP_VERSION: "3.6.3",
+        APP_VERSION: "3.6.4",
         HISTORY_LIMIT: 2000
       });
 
@@ -4943,7 +4943,7 @@
         const q = searchEl ? String(searchEl.value || "").trim().toLowerCase() : "";
         let list = loadHistory();
         const who = histViewName();
-        if (who && !state.histShowAll) {
+        if (who) {
           list = list.filter((item) => String(item.name || "").toLowerCase() === who.toLowerCase());
         }
         if (q) list = list.filter((item) => JSON.stringify(item).toLowerCase().indexOf(q) !== -1);
@@ -4998,16 +4998,12 @@
             ? "冇「" + who + "」的紀錄（全部共有 " + total + " 筆）。"
             : "暫時未有紀錄。完成一次解讀就會出現。";
           box.appendChild(empty);
-          if (total && !state.histShowAll) {
-            const all = document.createElement("button");
-            all.type = "button";
-            all.className = "hist-go";
-            all.textContent = "顯示全部 " + total + " 筆";
-            all.addEventListener("click", () => {
-              state.histShowAll = true;
-              renderHistPanel();
-            });
-            box.appendChild(all);
+          if (total) {
+            const tip = document.createElement("p");
+            tip.className = "hist-gate-text";
+            tip.style.textAlign = "center";
+            tip.textContent = "名字要同你當時解讀輸入的一模一樣（例如大小寫）。";
+            box.appendChild(tip);
           }
           if (posEl) posEl.textContent = "0 / 0";
           return;
@@ -5038,10 +5034,7 @@
         });
 
         state.historyIndex = current >= 0 ? current : Math.min(state.historyIndex || 0, list.length - 1);
-        if (posEl) {
-          posEl.textContent = (state.historyIndex + 1) + " / " + list.length + (state.histShowAll ? "（全部）" : "");
-          posEl.title = state.histShowAll ? "目前顯示全部，點擊改為只看我的" : "點擊顯示全部紀錄";
-        }
+        if (posEl) posEl.textContent = (state.historyIndex + 1) + " / " + list.length;
         const prev = document.getElementById("histPrev");
         const next = document.getElementById("histNext");
         if (prev) prev.disabled = state.historyIndex <= 0;
@@ -5122,10 +5115,6 @@
         if (target.id === "histNext") { event.preventDefault(); stepHistory(1); return; }
         if (target.id === "histPos") {
           event.preventDefault();
-          if (!histViewName()) { showToast("請先輸入名字", "error"); return; }
-          state.histShowAll = !state.histShowAll;
-          renderHistPanel();
-          showToast(state.histShowAll ? "顯示全部紀錄" : "只顯示我的紀錄");
           return;
         }
         if (target.classList && target.classList.contains("hist-item")) {
