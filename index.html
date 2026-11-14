@@ -2175,6 +2175,7 @@
     }
     .hist-panel[data-open="1"] { transform: translateX(0); }
     .hist-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+    .hist-ver { font-size: .68rem; font-weight: 500; opacity: .55; letter-spacing: .02em; }
     .hist-gate { margin-bottom: 10px; }
     .hist-gate-title { margin: 0 0 2px; font-size: .9rem; font-weight: 700; }
     .hist-gate-text { margin: 0 0 8px; font-size: .78rem; opacity: .7; line-height: 1.5; }
@@ -2616,7 +2617,7 @@
         FOLLOWUP_CONTEXT_MAX: 30000,   // 送給 AI 的原文上限（字元），超出會截斷
         FOLLOWUP_BLOCK_TOPICS: true,   // 拒答程式／數學／功課類問題
         STREAM: true,           // v2：串流輸出（逐字顯示）
-        APP_VERSION: "3.6.1",
+        APP_VERSION: "3.6.2",
         HISTORY_LIMIT: 2000
       });
 
@@ -4955,13 +4956,19 @@
         const gate = document.getElementById("histGate");
         if (!box) return;
 
-        let who = histViewName();
-        const liveInput = document.getElementById("histNameInput");
-        if (!who && liveInput && String(liveInput.value || "").trim()) {
-          who = sanitizeText(liveInput.value, 20);
-          state.histName = who;
-          try { window.localStorage.setItem("zwds.histname", who); } catch (error) { /* 忽略 */ }
+        let who = "";
+        try {
+          const liveInput = document.getElementById("histNameInput");
+          who = sanitizeText(liveInput ? liveInput.value : "", 20) || histViewName();
+        } catch (error) {
+          who = state.histName || "";
         }
+
+        const statusEl = document.getElementById("histGateStatus");
+        if (statusEl) {
+          statusEl.textContent = "狀態：名字=「" + (who || "（空白）") + "」，紀錄共 " + loadHistory().length + " 筆";
+        }
+
         if (!who) {
           if (gate) gate.hidden = false;
           box.textContent = "";
@@ -5038,6 +5045,8 @@
       }
 
       function openHistPanel() {
+        const verEl = document.getElementById("histVer");
+        if (verEl) verEl.textContent = "v" + CONFIG.APP_VERSION;
         const nameEl = document.getElementById("histNameInput");
         const saved = histViewName();
         if (nameEl && saved) nameEl.value = saved;
@@ -5077,6 +5086,53 @@
           .trim()
           .slice(0, max);
       }
+
+      /* ---------- v3.6.2：歷史名稱閘門（全域委派，最穩） ---------- */
+
+      function readGateName() {
+        const input = document.getElementById("histNameInput");
+        const raw = input ? String(input.value || "") : "";
+        const cleaned = sanitizeText(raw, 20);
+        if (cleaned) {
+          state.histName = cleaned;
+          try { window.localStorage.setItem("zwds.histname", cleaned); } catch (error) { /* 忽略 */ }
+        }
+        return cleaned || histViewName();
+      }
+
+      function refreshHistGate() {
+        state.histName = readGateName();
+        state.histShowAll = false;
+        renderHistPanel();
+      }
+
+      document.addEventListener("click", function (event) {
+        const target = event.target;
+        if (!target || !target.id) return;
+        if (target.id === "histNameBtn") {
+          event.preventDefault();
+          refreshHistGate();
+        }
+      }, true);
+
+      document.addEventListener("input", function (event) {
+        const target = event.target;
+        if (!target || target.id !== "histNameInput") return;
+        window.clearTimeout(state.histGateTimer || 0);
+        state.histGateTimer = window.setTimeout(function () {
+          state.histName = sanitizeText(target.value, 20);
+          try { window.localStorage.setItem("zwds.histname", state.histName); } catch (error) { /* 忽略 */ }
+          renderHistPanel();
+        }, 250);
+      }, true);
+
+      document.addEventListener("keydown", function (event) {
+        const target = event.target;
+        if (!target || target.id !== "histNameInput") return;
+        if (event.key !== "Enter") return;
+        event.preventDefault();
+        refreshHistGate();
+      }, true);
 
       /* 對外暴露少量內部函式，供離線自動測試使用（不影響一般操作） */
       window.__zwdsInternals = Object.freeze({
@@ -5143,7 +5199,7 @@
 
   <aside class="hist-panel" id="histPanel" aria-hidden="true" aria-label="解讀歷史">
     <div class="hist-head">
-      <strong>解讀歷史</strong>
+      <strong>解讀歷史 <span class="hist-ver" id="histVer">v</span></strong>
       <button class="icon-btn" id="histClose" type="button" aria-label="關閉">✕</button>
     </div>
     <div class="hist-gate" id="histGate">
@@ -5151,6 +5207,7 @@
       <p class="hist-gate-text">為保護私隱，未輸入名字之前唔會顯示任何紀錄。</p>
       <input class="hist-search" id="histNameInput" type="text" maxlength="20" placeholder="你的名字（例如 Kevin）" aria-label="你的名字" />
       <button class="hist-go" id="histNameBtn" type="button">查看我的紀錄</button>
+      <p class="hist-gate-text" id="histGateStatus">狀態：未套用</p>
     </div>
 
     <input class="hist-search" id="histSearch" type="text" maxlength="60" placeholder="搜尋名字／牌名／追問…" aria-label="搜尋歷史" />
