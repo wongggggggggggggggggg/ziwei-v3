@@ -123,6 +123,30 @@ async function getVisitorName(env, ip) {
   try { return (await env.ZWDS_KV.get("n:" + ip)) || ""; } catch (error) { return ""; }
 }
 
+async function recordEvent(env, ip, name, event) {
+  if (!env.ZWDS_KV) return;
+  const key = "ev:" + weekKey();
+  let list = [];
+  try {
+    const raw = await env.ZWDS_KV.get(key, "json");
+    if (Array.isArray(raw)) list = raw;
+  } catch (error) { list = []; }
+  list.push({
+    t: Date.now(),
+    ip: ip,
+    name: name || "",
+    kind: String(event.kind || "unknown").slice(0, 20),
+    main: String(event.main || "").slice(0, 20),
+    support: String(event.support || "").slice(0, 20),
+    life: String(event.life || "").slice(0, 20),
+    mode: String(event.mode || "").slice(0, 10),
+    question: String(event.question || "").slice(0, 300)
+  });
+  if (list.length > 500) list = list.slice(-500);
+  await env.ZWDS_KV.put(key, JSON.stringify(list), { expirationTtl: 30 * 86400 });
+  if (name) await env.ZWDS_KV.put("n:" + ip, name, { expirationTtl: 30 * 86400 });
+}
+
 function maskIp(ip) {
   const text = String(ip || "");
   if (text.indexOf(":") !== -1) {
@@ -268,7 +292,21 @@ export default {
           if (Array.isArray(raw)) list = raw;
         } catch (error) { list = []; }
       }
-      return json({ ok: true, week: weekKey(), count: list.length, recent: list.slice(-50) }, 200, origin);
+      let events = [];
+      if (env.ZWDS_KV) {
+        try {
+          const raw = await env.ZWDS_KV.get("ev:" + weekKey(), "json");
+          if (Array.isArray(raw)) events = raw;
+        } catch (error) { events = []; }
+      }
+      return json({
+        ok: true,
+        week: weekKey(),
+        count: list.length,
+        recent: list.slice(-50),
+        eventCount: events.length,
+        events: events.slice(-80)
+      }, 200, origin);
     }
 
     if (request.method !== "POST") return fail("只接受 POST", 405, origin, "method");
@@ -330,6 +368,20 @@ export default {
         ok: true, token: session.token, exp: session.exp, ttl: session.ttl,
         name: name, ip: maskIp(ip)
       }, 200, origin);
+    }
+
+    /* ---- 使用紀錄（只記錄，不扣額度；需要有效 session） ---- */
+    if (url.pathname === "/event") {
+      let body2 = null;
+      try { body2 = await request.json(); } catch (error) { body2 = null; }
+      if (!body2) return fail("body 不是合法 JSON", 400, origin, "body");
+
+      const sess = await checkSession(env, request.headers.get("x-zwds-session") || body2.session);
+      if (!sess.ok) return fail("請先完成人機驗證", 401, origin, "session_required");
+
+      const name = String(body2.name || "").trim().slice(0, 20) || (await getVisitorName(env, ip));
+      await recordEvent(env, ip, name, body2);
+      return json({ ok: true }, 200, origin);
     }
 
     /* ---- 對話 ---- */
