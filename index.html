@@ -2616,7 +2616,7 @@
         FOLLOWUP_CONTEXT_MAX: 30000,   // 送給 AI 的原文上限（字元），超出會截斷
         FOLLOWUP_BLOCK_TOPICS: true,   // 拒答程式／數學／功課類問題
         STREAM: true,           // v2：串流輸出（逐字顯示）
-        APP_VERSION: "3.6.0",
+        APP_VERSION: "3.6.1",
         HISTORY_LIMIT: 2000
       });
 
@@ -2696,6 +2696,7 @@
         historyIndex: 0,
         chatId: "",
         histShowAll: false,
+        histName: "",
         followups: [],
         readingSelection: null,
         currentHistoryAt: 0
@@ -4406,17 +4407,34 @@
         const histNameBtn = document.getElementById("histNameBtn");
         const histNameInput = document.getElementById("histNameInput");
         function applyHistName() {
-          const value = histNameInput ? sanitizeText(histNameInput.value, 20) : "";
-          if (!value) { showToast("請先輸入名字", "error"); return; }
-          try { window.localStorage.setItem("zwds.histname", value); } catch (error) { /* 忽略 */ }
-          state.histShowAll = false;
-          renderHistPanel();
-          showToast("已顯示 " + value + " 的紀錄");
+          try {
+            const value = histNameInput ? sanitizeText(histNameInput.value, 20) : "";
+            if (!value) { showToast("請先輸入名字", "error"); return; }
+            state.histName = value;
+            try { window.localStorage.setItem("zwds.histname", value); } catch (error) { /* 忽略 */ }
+            state.histShowAll = false;
+            renderHistPanel();
+            showToast("已顯示 " + value + " 的紀錄");
+          } catch (error) {
+            showToast("套用名字失敗：" + (error && error.message ? error.message : "未知錯誤"), "error");
+          }
         }
         if (histNameBtn) histNameBtn.addEventListener("click", applyHistName);
         if (histNameInput) {
           histNameInput.addEventListener("keydown", (event) => {
             if (event.key === "Enter") { event.preventDefault(); applyHistName(); }
+          });
+          let nameTimer = 0;
+          histNameInput.addEventListener("input", () => {
+            if (nameTimer) window.clearTimeout(nameTimer);
+            nameTimer = window.setTimeout(() => {
+              nameTimer = 0;
+              const value = sanitizeText(histNameInput.value, 20);
+              if (!value) return;
+              state.histName = value;
+              try { window.localStorage.setItem("zwds.histname", value); } catch (error) { /* 忽略 */ }
+              renderHistPanel();
+            }, 350);
           });
         }
 
@@ -4909,7 +4927,14 @@
       /* ---------- v3.4：浮動歷史側欄 ---------- */
 
       function histViewName() {
-        try { return String(window.localStorage.getItem("zwds.histname") || "").trim(); } catch (error) { return ""; }
+        if (state.histName) return state.histName;
+        try {
+          const saved = String(window.localStorage.getItem("zwds.histname") || "").trim();
+          if (saved) state.histName = saved;
+          return saved;
+        } catch (error) {
+          return state.histName || "";
+        }
       }
 
       function histItems() {
@@ -4930,7 +4955,13 @@
         const gate = document.getElementById("histGate");
         if (!box) return;
 
-        const who = histViewName();
+        let who = histViewName();
+        const liveInput = document.getElementById("histNameInput");
+        if (!who && liveInput && String(liveInput.value || "").trim()) {
+          who = sanitizeText(liveInput.value, 20);
+          state.histName = who;
+          try { window.localStorage.setItem("zwds.histname", who); } catch (error) { /* 忽略 */ }
+        }
         if (!who) {
           if (gate) gate.hidden = false;
           box.textContent = "";
@@ -4953,10 +4984,24 @@
         box.textContent = "";
 
         if (!list.length) {
+          const total = loadHistory().length;
           const empty = document.createElement("p");
           empty.className = "hist-empty";
-          empty.textContent = "暫時未有紀錄。完成一次解讀就會出現。";
+          empty.textContent = total
+            ? "冇「" + who + "」的紀錄（全部共有 " + total + " 筆）。"
+            : "暫時未有紀錄。完成一次解讀就會出現。";
           box.appendChild(empty);
+          if (total && !state.histShowAll) {
+            const all = document.createElement("button");
+            all.type = "button";
+            all.className = "hist-go";
+            all.textContent = "顯示全部 " + total + " 筆";
+            all.addEventListener("click", () => {
+              state.histShowAll = true;
+              renderHistPanel();
+            });
+            box.appendChild(all);
+          }
           if (posEl) posEl.textContent = "0 / 0";
           return;
         }
@@ -4993,6 +5038,9 @@
       }
 
       function openHistPanel() {
+        const nameEl = document.getElementById("histNameInput");
+        const saved = histViewName();
+        if (nameEl && saved) nameEl.value = saved;
         const panel = document.getElementById("histPanel");
         const scrim = document.getElementById("histScrim");
         if (!panel) return;
