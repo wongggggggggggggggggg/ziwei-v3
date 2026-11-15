@@ -2255,6 +2255,43 @@
     .history-empty { font-size: .9rem; opacity: .7; margin: 0; }
     .kbd-note { font-size: .78rem; opacity: .65; margin: .5rem 0 0; }
     .setting-block[hidden] { display: none; }
+    .selection-options { display: grid; grid-template-columns: 1fr 1.2fr; gap: 12px; margin: 14px 0 6px; }
+    @media (max-width: 820px) { .selection-options { grid-template-columns: 1fr; } }
+    .orientation-panel { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .orientation-item {
+      border: 1px solid rgba(148, 163, 184, .35); border-radius: .7rem; padding: .5rem .55rem;
+    }
+    .orientation-name { display: block; font-size: .72rem; opacity: .65; margin-bottom: .35rem; }
+    .orientation-toggle { display: flex; gap: 4px; }
+    .orientation-toggle button {
+      flex: 1; padding: .32rem .2rem; font-size: .78rem; border-radius: .45rem; cursor: pointer;
+      border: 1px solid rgba(148, 163, 184, .45); background: transparent; color: inherit;
+    }
+    .orientation-toggle button.is-on { background: rgba(124, 92, 255, .18); border-color: #7c5cff; color: #7c5cff; font-weight: 700; }
+    .question-field {
+      border: 1px solid rgba(148, 163, 184, .35); border-radius: .7rem; padding: .55rem .65rem;
+    }
+    .question-label { display: flex; justify-content: space-between; font-size: .78rem; margin-bottom: .35rem; }
+    .question-label span { opacity: .6; font-size: .72rem; }
+    .question-input {
+      width: 100%; box-sizing: border-box; resize: vertical; min-height: 3.2em;
+      border: 1px solid rgba(148, 163, 184, .45); border-radius: .5rem; padding: .5rem .6rem;
+      background: transparent; color: inherit; font-size: .84rem; line-height: 1.5;
+    }
+    .question-meta { display: flex; justify-content: space-between; font-size: .7rem; opacity: .6; margin-top: .3rem; }
+    .prompt-tabs { display: flex; gap: 6px; margin-bottom: 10px; }
+    .prompt-tabs button {
+      flex: 1; padding: .45rem; border-radius: .55rem; border: 1px solid rgba(148,163,184,.45);
+      background: transparent; color: inherit; font-size: .82rem; cursor: pointer;
+    }
+    .prompt-tabs button.is-on { background: rgba(124,92,255,.16); border-color: #7c5cff; color: #7c5cff; font-weight: 700; }
+    .prompt-view {
+      max-height: 45vh; overflow: auto; white-space: pre-wrap; word-break: break-word;
+      background: rgba(148,163,184,.08); border: 1px solid rgba(148,163,184,.28);
+      border-radius: .6rem; padding: .7rem .8rem; font-size: .78rem; line-height: 1.65; margin: 0;
+    }
+    .prompt-meta { display: flex; justify-content: space-between; font-size: .7rem; opacity: .6; margin: .4rem 0; }
+    .prompt-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
     .followup { margin-top: 1.6rem; border-top: 1px solid rgba(148, 163, 184, .3); padding-top: 1.1rem; }
     .followup[hidden] { display: none; }
     .followup h3 { font-size: 1rem; margin: 0 0 .25rem; }
@@ -2448,10 +2485,49 @@
         </div>
       </div>
 
+      <div class="selection-options">
+        <div class="orientation-panel" role="group" aria-label="牌位正倒設定">
+          <div class="orientation-item">
+            <span class="orientation-name">主星牌位</span>
+            <div class="orientation-toggle">
+              <button type="button" id="orientMainUp" class="is-on" onclick="window.__zwdsExtra&&window.__zwdsExtra.orient('main',false)">正位</button>
+              <button type="button" id="orientMainDown" onclick="window.__zwdsExtra&&window.__zwdsExtra.orient('main',true)">倒位</button>
+            </div>
+          </div>
+          <div class="orientation-item">
+            <span class="orientation-name">輔星牌位</span>
+            <div class="orientation-toggle">
+              <button type="button" id="orientSupportUp" class="is-on" onclick="window.__zwdsExtra&&window.__zwdsExtra.orient('support',false)">正位</button>
+              <button type="button" id="orientSupportDown" onclick="window.__zwdsExtra&&window.__zwdsExtra.orient('support',true)">倒位</button>
+            </div>
+          </div>
+          <div class="orientation-item">
+            <span class="orientation-name">長生牌位</span>
+            <div class="orientation-toggle">
+              <button type="button" id="orientLifeUp" class="is-on" onclick="window.__zwdsExtra&&window.__zwdsExtra.orient('life',false)">正位</button>
+              <button type="button" id="orientLifeDown" onclick="window.__zwdsExtra&&window.__zwdsExtra.orient('life',true)">倒位</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="question-field">
+          <label class="question-label" for="questionInput">想問的問題<span>選填 · 原文送出</span></label>
+          <textarea class="question-input" id="questionInput" rows="2" maxlength="500" spellcheck="false"
+                    placeholder="例如：未來三個月的工作發展該注意什麼？"
+                    oninput="window.__zwdsExtra&&window.__zwdsExtra.question(this)"></textarea>
+          <div class="question-meta">
+            <span>留空也可以，AI 會依牌面整體解讀。</span>
+            <span id="questionCount">0 / 500</span>
+          </div>
+        </div>
+      </div>
+
       <div class="summary-actions">
         <button class="btn btn-ghost" id="randomBtn" type="button" title="隨機抽出三張牌">
           <span class="btn-icon" aria-hidden="true">✦</span>隨機抽牌
         </button>
+        <button class="btn btn-ghost" id="promptBtn" type="button"
+                onclick="window.__zwdsExtra&&window.__zwdsExtra.promptOpen()">提示詞</button>
         <button class="btn btn-ghost" id="clearBtn" type="button" aria-label="清除全部選擇" disabled>清除</button>
         <button class="btn btn-primary js-read" id="readBtn" type="button" disabled>
           <span class="btn-spinner" aria-hidden="true"></span>
@@ -2655,7 +2731,7 @@
         FOLLOWUP_CONTEXT_MAX: 30000,   // 送給 AI 的原文上限（字元），超出會截斷
         FOLLOWUP_BLOCK_TOPICS: true,   // 拒答程式／數學／功課類問題
         STREAM: true,           // v2：串流輸出（逐字顯示）
-        APP_VERSION: "3.7.1",
+        APP_VERSION: "3.8.0",
         HISTORY_LIMIT: 2000
       });
 
@@ -2736,6 +2812,9 @@
         chatId: "",
         histShowAll: false,
         debug: false,
+        orientations: { main: false, support: false, life: false },
+        customQuestion: "",
+        promptDraft: { reading: "", followup: "" },
         histName: "",
         followups: [],
         readingSelection: null,
@@ -3225,15 +3304,23 @@
         }
       }
 
+      function orientationText(kind) {
+        const map = state.orientations || {};
+        return map[kind] ? "倒位（逆位）" : "正位（順位）";
+      }
+
       function buildPrompt(selection) {
+        const q = String(state.customQuestion || "").trim().slice(0, 500);
         return [
           "使用者選擇：",
           "",
-          "主星：" + selection.main,
-          "輔星：" + selection.support,
-          "長生：" + selection.life,
+          "主星：" + selection.main + "（" + orientationText("main") + "）",
+          "輔星：" + selection.support + "（" + orientationText("support") + "）",
+          "長生：" + selection.life + "（" + orientationText("life") + "）",
+          q ? "使用者的問題（原文）：" + q : "使用者的問題：（未填）",
           "",
-          "請扮演一位專業、溫暖且具洞察力的紫微斗數牌卡解讀師，根據以上三張牌進行整合解讀。",
+          "請扮演一位專業、溫暖且具洞察力的紫微斗數牌卡解讀師，根據以上三張牌進行整合解讀。" +
+            (q ? "，並優先回應使用者的問題。" : "。"),
           "",
           "請使用繁體中文（台灣用語），並嚴格依照以下七個段落輸出，每個段落以 Markdown 的「###」標題呈現：",
           "",
@@ -3544,7 +3631,9 @@
           support: state.selection.support,
           life: state.selection.life
         };
-        const prompt = buildPrompt(requestSelection);
+        const prompt = (state.promptDraft.reading && state.promptDraft.reading.trim())
+          ? state.promptDraft.reading
+          : buildPrompt(requestSelection);
 
         state.chatId = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
         state.readingSelection = { main: requestSelection.main, support: requestSelection.support, life: requestSelection.life };
@@ -4824,8 +4913,11 @@
           "【使用者追問】",
           question
         ].join("\n");
+        const sys = (state.promptDraft.followup && state.promptDraft.followup.trim())
+          ? state.promptDraft.followup
+          : followupSystemPrompt();
         return [
-          { role: "system", content: followupSystemPrompt() },
+          { role: "system", content: sys },
           { role: "user", content: context }
         ];
       }
@@ -5307,6 +5399,104 @@
       });
 
       /* ---------- v3.6.6：歷史面板的 inline 入口 ---------- */
+      window.__zwdsExtra = {
+        promptOpen: function () { window.__zwdsPrompt.open(); },
+        promptClose: function () { window.__zwdsPrompt.close(); },
+        promptTab: function (name) { window.__zwdsPrompt.tab(name); },
+        promptCopy: function () { window.__zwdsPrompt.copy(); },
+        promptEditToggle: function () { window.__zwdsPrompt.editToggle(); },
+        promptReset: function () { window.__zwdsPrompt.reset(); },
+        orient: function (kind, reversed) {
+          state.orientations[kind] = Boolean(reversed);
+          const up = document.getElementById("orient" + kind.charAt(0).toUpperCase() + kind.slice(1) + "Up");
+          const down = document.getElementById("orient" + kind.charAt(0).toUpperCase() + kind.slice(1) + "Down");
+          if (up) up.classList.toggle("is-on", !reversed);
+          if (down) down.classList.toggle("is-on", Boolean(reversed));
+        },
+        question: function (el) {
+          const value = String(el && el.value ? el.value : "").slice(0, 500);
+          state.customQuestion = value;
+          const counter = document.getElementById("questionCount");
+          if (counter) counter.textContent = value.length + " / 500";
+        }
+      };
+
+      function promptTextOf(tab) {
+        if (tab === "followup") {
+          const draft = state.promptDraft.followup;
+          return (draft && draft.trim()) ? draft : followupSystemPrompt();
+        }
+        const draft = state.promptDraft.reading;
+        if (draft && draft.trim()) return draft;
+        const sel = {
+          main: state.selection.main || "（未選）",
+          support: state.selection.support || "（未選）",
+          life: state.selection.life || "（未選）"
+        };
+        return buildPrompt(sel);
+      }
+
+      function renderPromptPanel() {
+        const view = document.getElementById("promptView");
+        const edit = document.getElementById("promptEdit");
+        const len = document.getElementById("promptLen");
+        if (!view) return;
+        const text = promptTextOf(state.promptTab || "reading");
+        if (edit && !edit.hidden) edit.value = text;
+        view.textContent = text;
+        if (len) len.textContent = text.length + " 字";
+        const t1 = document.getElementById("promptTabReading");
+        const t2 = document.getElementById("promptTabFollowup");
+        if (t1) t1.classList.toggle("is-on", (state.promptTab || "reading") === "reading");
+        if (t2) t2.classList.toggle("is-on", state.promptTab === "followup");
+      }
+
+      window.__zwdsPrompt = {
+        open: function () {
+          state.promptTab = state.promptTab || "reading";
+          const dlg = document.getElementById("promptDialog");
+          if (dlg && dlg.showModal) dlg.showModal();
+          renderPromptPanel();
+        },
+        close: function () {
+          const dlg = document.getElementById("promptDialog");
+          if (dlg && dlg.close) dlg.close();
+        },
+        tab: function (name) { state.promptTab = name; renderPromptPanel(); },
+        copy: function () {
+          const text = promptTextOf(state.promptTab || "reading");
+          copyText(text).then((ok) => showToast(ok ? "已複製提示詞" : "複製失敗", ok ? "success" : "error"));
+        },
+        editToggle: function () {
+          const view = document.getElementById("promptView");
+          const edit = document.getElementById("promptEdit");
+          const btn = document.getElementById("promptEditBtn");
+          if (!edit || !view) return;
+          if (edit.hidden) {
+            edit.hidden = false;
+            view.hidden = true;
+            edit.value = promptTextOf(state.promptTab || "reading");
+            if (btn) btn.textContent = "儲存";
+          } else {
+            const tab = state.promptTab || "reading";
+            state.promptDraft[tab] = edit.value;
+            edit.hidden = true;
+            view.hidden = false;
+            if (btn) btn.textContent = "編輯";
+            renderPromptPanel();
+            showToast("已儲存自訂提示詞（可隨時還原）");
+          }
+        },
+        reset: function () {
+          const tab = state.promptTab || "reading";
+          state.promptDraft[tab] = "";
+          const edit = document.getElementById("promptEdit");
+          if (edit) edit.value = "";
+          renderPromptPanel();
+          showToast("已還原預設提示詞");
+        }
+      };
+
       window.__zwdsHist = {
         toggleDebug: function () {
           state.debug = !state.debug;
@@ -5446,5 +5636,35 @@
     </div>
   </aside>
   <div class="hist-scrim" id="histScrim" hidden></div>
+
+  <dialog class="settings" id="promptDialog" aria-labelledby="promptTitle">
+    <div class="dialog-head">
+      <div>
+        <h2 id="promptTitle">提示詞</h2>
+        <p>這裡看到的就是實際送給 DeepSeek 的內容</p>
+      </div>
+      <button class="icon-btn" type="button" aria-label="關閉"
+              onclick="window.__zwdsExtra&&window.__zwdsExtra.promptClose()">✕</button>
+    </div>
+    <div class="settings-body">
+      <div class="prompt-tabs">
+        <button type="button" id="promptTabReading" class="is-on"
+                onclick="window.__zwdsExtra&&window.__zwdsExtra.promptTab('reading')">初次解讀</button>
+        <button type="button" id="promptTabFollowup"
+                onclick="window.__zwdsExtra&&window.__zwdsExtra.promptTab('followup')">追問</button>
+      </div>
+      <pre class="prompt-view" id="promptView"></pre>
+      <textarea class="question-input" id="promptEdit" rows="10" hidden></textarea>
+      <div class="prompt-meta"><span id="promptLen">0 字</span><span>唯讀模式 · 看到的內容就是送出的內容</span></div>
+      <div class="prompt-actions">
+        <button class="btn btn-ghost btn-sm" type="button" id="promptCopyBtn"
+                onclick="window.__zwdsExtra&&window.__zwdsExtra.promptCopy()">複製提示詞</button>
+        <button class="btn btn-ghost btn-sm" type="button" id="promptEditBtn"
+                onclick="window.__zwdsExtra&&window.__zwdsExtra.promptEditToggle()">編輯</button>
+        <button class="btn btn-ghost btn-sm" type="button"
+                onclick="window.__zwdsExtra&&window.__zwdsExtra.promptReset()">還原</button>
+      </div>
+    </div>
+  </dialog>
 </body>
 </html>
