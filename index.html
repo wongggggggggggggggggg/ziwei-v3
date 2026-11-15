@@ -2754,7 +2754,7 @@
         FOLLOWUP_CONTEXT_MAX: 30000,   // 送給 AI 的原文上限（字元），超出會截斷
         FOLLOWUP_BLOCK_TOPICS: true,   // 拒答程式／數學／功課類問題
         STREAM: true,           // v2：串流輸出（逐字顯示）
-        APP_VERSION: "4.0.2",
+        APP_VERSION: "4.1.0",
         HISTORY_LIMIT: 2000
       });
 
@@ -5465,6 +5465,7 @@
         promptClose: function () { window.__zwdsPrompt.close(); },
         promptTab: function (name) { window.__zwdsPrompt.tab(name); },
         promptCopy: function () { window.__zwdsPrompt.copy(); },
+        promptCopyAll: function () { window.__zwdsPrompt.copyAll(); },
         promptEditToggle: function () { window.__zwdsPrompt.editToggle(); },
         promptReset: function () { window.__zwdsPrompt.reset(); },
         orient: function (kind, reversed) {
@@ -5482,10 +5483,33 @@
         }
       };
 
+      function followupPromptText() {
+        const sel = state.readingSelection || state.selection || {};
+        const q0 = String(state.customQuestion || "").trim();
+        const input = document.getElementById("followupInput");
+        const q1 = input ? String(input.value || "").trim() : "";
+        const lines = [];
+        lines.push("【本次牌組】", "");
+        lines.push("主星：" + (sel.main || "（未選）") + "（" + orientationText("main") + "）");
+        lines.push("輔星：" + (sel.support || "（未選）") + "（" + orientationText("support") + "）");
+        lines.push("長生：" + (sel.life || "（未選）") + "（" + orientationText("life") + "）");
+        lines.push("", "【原本的解讀（完整保留，請不要改寫它的意思）】", "");
+        lines.push(state.lastMarkdown || "（尚未有解讀；做一次解讀後就會自動填入）");
+        lines.push("", "【使用者的原始問題】", '"""');
+        lines.push(q0 || "（使用者未填寫具體問題）");
+        lines.push('"""');
+        lines.push("", "【這次的追問】", '"""');
+        lines.push(q1 || "（請在上方輸入欄輸入追問；未輸入時 AI 會依牌面整體回應）");
+        lines.push('"""');
+        lines.push("", "【任務】");
+        lines.push("只回答這次的追問，並延續上面的牌面與解讀結論。不要重新輸出七段格式。");
+        return lines.join("\n");
+      }
+
       function promptTextOf(tab) {
         if (tab === "followup") {
           const draft = state.promptDraft.followup;
-          return (draft && draft.trim()) ? draft : followupSystemPrompt();
+          return (draft && draft.trim()) ? draft : followupPromptText();
         }
         const draft = state.promptDraft.reading;
         if (draft && draft.trim()) return draft;
@@ -5547,6 +5571,11 @@
           if (dlg && dlg.close) dlg.close();
         },
         tab: function (name) { state.promptTab = name; renderPromptPanel(); },
+        copyAll: function () {
+          const body = promptTextOf(state.promptTab || "reading");
+          const text = "【系統提示詞】\n" + SYSTEM_PROMPT + "\n\n【內容】\n" + body;
+          copyText(text).then((ok) => showToast(ok ? "已複製（系統＋內容）" : "複製失敗", ok ? "success" : "error"));
+        },
         copy: function () {
           const text = promptTextOf(state.promptTab || "reading");
           copyText(text).then((ok) => showToast(ok ? "已複製提示詞" : "複製失敗", ok ? "success" : "error"));
@@ -5756,6 +5785,8 @@
       </details>
 
       <div class="prompt-actions">
+        <button class="btn btn-ghost btn-sm" type="button" id="promptCopyAllBtn"
+                onclick="window.__zwdsExtra&&window.__zwdsExtra.promptCopyAll()">複製全部（系統＋內容）</button>
         <button class="btn btn-ghost btn-sm" type="button" id="promptCopyBtn"
                 onclick="window.__zwdsExtra&&window.__zwdsExtra.promptCopy()">複製提示詞</button>
         <button class="btn btn-ghost btn-sm" type="button" id="promptEditBtn"
