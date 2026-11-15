@@ -2176,6 +2176,12 @@
     .hist-panel[data-open="1"] { transform: translateX(0); }
     .hist-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
     .hist-ver { font-size: .68rem; font-weight: 500; opacity: .55; letter-spacing: .02em; }
+    .hist-debug {
+      width: 100%; margin-bottom: 8px; padding: .35rem .5rem; border-radius: .45rem;
+      background: rgba(124, 92, 255, .12); border: 1px dashed rgba(124, 92, 255, .45);
+      font-size: .68rem; line-height: 1.45; color: #7c5cff; word-break: break-all;
+    }
+    .hist-debug b { font-weight: 700; }
     .hist-gate { margin-bottom: 10px; }
     .hist-gate-title { margin: 0 0 2px; font-size: .9rem; font-weight: 700; }
     .hist-gate-text { margin: 0 0 8px; font-size: .78rem; opacity: .7; line-height: 1.5; }
@@ -2243,6 +2249,10 @@
     .followup-item .a[data-streaming="1"]::after {
       content: "▍"; opacity: .6; animation: blink 1s steps(1) infinite;
     }
+    .ver-badge {
+      font-size: .68rem; opacity: .55; padding: .2rem .45rem; border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, .35); white-space: nowrap;
+    }
     .quota-chip {
       border: 1px solid rgba(148, 163, 184, .45); background: transparent; color: inherit;
       border-radius: 999px; padding: .34rem .72rem; font-size: .78rem; letter-spacing: .02em;
@@ -2298,6 +2308,7 @@
         <span class="brand-text">紫微斗數 <span class="brand-ai">AI</span> 解牌</span>
       </a>
       <div class="topbar-actions">
+        <span class="ver-badge" id="verBadge" title="版本">v</span>
         <button class="quota-chip" id="quotaChip" type="button" hidden>本週 — 次</button>
         <button class="icon-btn" id="themeToggle" type="button" aria-label="切換為淺色主題" title="切換主題">
           <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
@@ -2618,7 +2629,7 @@
         FOLLOWUP_CONTEXT_MAX: 30000,   // 送給 AI 的原文上限（字元），超出會截斷
         FOLLOWUP_BLOCK_TOPICS: true,   // 拒答程式／數學／功課類問題
         STREAM: true,           // v2：串流輸出（逐字顯示）
-        APP_VERSION: "3.6.6",
+        APP_VERSION: "3.6.7",
         HISTORY_LIMIT: 2000
       });
 
@@ -4481,6 +4492,9 @@
             if (event.key === "Enter") { event.preventDefault(); unlockQuota(); }
           });
         }
+        const verBadge = document.getElementById("verBadge");
+        if (verBadge) verBadge.textContent = "v" + CONFIG.APP_VERSION;
+        document.title = "紫微斗數 AI 解牌 · v" + CONFIG.APP_VERSION;
         resetHistPanelState();
         loadTurnstile();
         const gateNameInput = document.getElementById("gateName");
@@ -4974,6 +4988,11 @@
           who = state.histName || "";
         }
 
+        try {
+          debugBar("<b>v" + CONFIG.APP_VERSION + "</b> · 輸入=「" + who + "」· 全部 " + loadHistory().length + " 筆" +
+            (window.__zwdsErr ? " · " + window.__zwdsErr : ""));
+        } catch (error) { /* 忽略 */ }
+
         const statusEl = document.getElementById("histGateStatus");
         if (statusEl) {
           statusEl.textContent = "狀態：名字=「" + (who || "（空白）") + "」，紀錄共 " + loadHistory().length + " 筆";
@@ -4994,8 +5013,6 @@
           return;
         }
         if (gate) gate.hidden = true;
-        const nameEl = document.getElementById("histNameInput");
-        if (nameEl) nameEl.value = who;
 
         const list = histItems();
         box.textContent = "";
@@ -5209,6 +5226,22 @@
         refreshHistGate();
       }, true);
 
+      /* ---------- v3.6.7：診斷（把錯誤顯示在面板上） ---------- */
+      window.__zwdsErr = "";
+      function debugBar(text) {
+        const el = document.getElementById("histDebug");
+        if (el) el.innerHTML = text;
+      }
+      window.addEventListener("error", function (event) {
+        window.__zwdsErr = "ERR " + (event.message || "") + " @ " + (event.filename || "").split("/").pop() + ":" + (event.lineno || 0);
+        debugBar("<b>v" + CONFIG.APP_VERSION + "</b> · " + window.__zwdsErr);
+      });
+      window.addEventListener("unhandledrejection", function (event) {
+        const reason = event.reason && event.reason.message ? event.reason.message : String(event.reason || "");
+        window.__zwdsErr = "PROMISE " + reason;
+        debugBar("<b>v" + CONFIG.APP_VERSION + "</b> · " + window.__zwdsErr);
+      });
+
       /* ---------- v3.6.6：歷史面板的 inline 入口 ---------- */
       window.__zwdsHist = {
         name: function (value) {
@@ -5291,6 +5324,7 @@
   <aside class="hist-panel" id="histPanel" aria-hidden="true" aria-label="解讀歷史">
     <div class="hist-head">
       <strong>解讀歷史 <span class="hist-ver" id="histVer">v</span></strong>
+      <div class="hist-debug" id="histDebug">載入中…</div>
       <button class="icon-btn" id="histClose" type="button" aria-label="關閉">✕</button>
     </div>
     <div class="hist-gate" id="histGate">
