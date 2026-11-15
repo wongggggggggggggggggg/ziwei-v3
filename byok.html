@@ -2264,6 +2264,12 @@
     .selection-options { display: contents; }
     @media (max-width: 820px) { .selection-options { grid-template-columns: 1fr; } }
     .orientation-panel { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .orientation-random {
+      grid-column: 1 / -1; justify-self: start; margin-bottom: 6px;
+      padding: .28rem .6rem; border-radius: 999px; font-size: .74rem; cursor: pointer;
+      border: 1px dashed rgba(124, 92, 255, .55); background: transparent; color: #7c5cff;
+    }
+    .orientation-random:hover { background: rgba(124, 92, 255, .12); }
     .orientation-item {
       border: 1px solid rgba(148, 163, 184, .35); border-radius: .7rem; padding: .5rem .55rem;
     }
@@ -2485,6 +2491,8 @@
         <!-- 牌位 ＋ 想問的問題（v3.9：獨立卡片，唔再擠喺已選牌組內） -->
     <div class="options-card glass">
 
+        <button type="button" class="orientation-random" id="orientRandomBtn"
+                onclick="window.__zwdsExtra&&window.__zwdsExtra.randomOrientation()">🎲 隨機牌位</button>
         <div class="orientation-panel" role="group" aria-label="牌位正倒設定">
           <div class="orientation-item">
             <span class="orientation-name">主星牌位</span>
@@ -2754,7 +2762,7 @@
         FOLLOWUP_CONTEXT_MAX: 30000,   // 送給 AI 的原文上限（字元），超出會截斷
         FOLLOWUP_BLOCK_TOPICS: true,   // 拒答程式／數學／功課類問題
         STREAM: true,           // v2：串流輸出（逐字顯示）
-        APP_VERSION: "4.1.1",
+        APP_VERSION: "4.2.0",
         HISTORY_LIMIT: 2000
       });
 
@@ -3174,6 +3182,7 @@
         state.selection.main = randomItem(ALL_MAIN_CARDS);
         state.selection.support = randomItem(SUPPORT_CARDS);
         state.selection.life = randomItem(LIFE_STAGES);
+        randomizeOrientations();
 
         KINDS.forEach(syncSelectionUI);
         persistSelection();
@@ -3187,6 +3196,22 @@
         });
 
         showToast("已為你隨機抽出三張牌");
+      }
+
+      function applyOrientationUI(kind) {
+        const up = document.getElementById("orient" + kind.charAt(0).toUpperCase() + kind.slice(1) + "Up");
+        const down = document.getElementById("orient" + kind.charAt(0).toUpperCase() + kind.slice(1) + "Down");
+        const reversed = Boolean(state.orientations[kind]);
+        if (up) up.classList.toggle("is-on", !reversed);
+        if (down) down.classList.toggle("is-on", reversed);
+      }
+
+      function randomizeOrientations(silent) {
+        ["main", "support", "life"].forEach((kind) => {
+          state.orientations[kind] = Math.random() < 0.5;
+          applyOrientationUI(kind);
+        });
+        if (!silent) showToast("牌位已隨機（正位／倒位）");
       }
 
       function setReadingUI(busy) {
@@ -5468,6 +5493,7 @@
         promptCopyAll: function () { window.__zwdsPrompt.copyAll(); },
         promptEditToggle: function () { window.__zwdsPrompt.editToggle(); },
         promptReset: function () { window.__zwdsPrompt.reset(); },
+        randomOrientation: function () { randomizeOrientations(false); },
         orient: function (kind, reversed) {
           state.orientations[kind] = Boolean(reversed);
           const up = document.getElementById("orient" + kind.charAt(0).toUpperCase() + kind.slice(1) + "Up");
