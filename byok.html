@@ -2215,6 +2215,13 @@
     .hist-item[data-active="1"] { border-color: #7c5cff; background: rgba(124, 92, 255, .08); }
     .hist-item strong { display: block; font-size: .86rem; margin-bottom: 2px; }
     .hist-item span { display: block; opacity: .7; font-size: .76rem; }
+    .hist-qa {
+      margin-top: .45rem; padding-top: .45rem; border-top: 1px dashed rgba(148, 163, 184, .35);
+      font-size: .78rem; text-align: left;
+    }
+    .hist-qa-q { font-weight: 600; margin: .25rem 0 .15rem; opacity: .9; }
+    .hist-qa-a { opacity: .75; line-height: 1.55; max-height: 5.5em; overflow: hidden; }
+    .hist-qa-a p { margin: .2rem 0; }
     .hist-empty { opacity: .65; font-size: .82rem; text-align: center; padding: 22px 0; }
     .hist-nav {
       display: flex; align-items: center; justify-content: center; gap: 14px;
@@ -2640,7 +2647,7 @@
         FOLLOWUP_CONTEXT_MAX: 30000,   // 送給 AI 的原文上限（字元），超出會截斷
         FOLLOWUP_BLOCK_TOPICS: true,   // 拒答程式／數學／功課類問題
         STREAM: true,           // v2：串流輸出（逐字顯示）
-        APP_VERSION: "3.6.9",
+        APP_VERSION: "3.7.0",
         HISTORY_LIMIT: 2000
       });
 
@@ -2720,6 +2727,7 @@
         historyIndex: 0,
         chatId: "",
         histShowAll: false,
+        debug: false,
         histName: "",
         followups: [],
         readingSelection: null,
@@ -5006,7 +5014,7 @@
 
         const statusEl = document.getElementById("histGateStatus");
         if (statusEl) {
-          if (DEBUG_ON) {
+          if (DEBUG_ON || state.debug) {
             statusEl.hidden = false;
             statusEl.textContent = "狀態：名字=「" + (who || "（空白）") + "」，紀錄共 " + loadHistory().length + " 筆";
           } else {
@@ -5081,6 +5089,23 @@
             " · 追問 " + ((item.followups || []).length) + " 條";
           btn.appendChild(title);
           btn.appendChild(meta);
+
+          const follows = item.followups || [];
+          if (follows.length) {
+            const box = document.createElement("div");
+            box.className = "hist-qa";
+            follows.forEach((f, i) => {
+              const q = document.createElement("div");
+              q.className = "hist-qa-q";
+              q.textContent = "問 " + (i + 1) + "：" + (f.q || "");
+              const a = document.createElement("div");
+              a.className = "hist-qa-a";
+              a.innerHTML = renderMarkdown(f.a || "");
+              box.appendChild(q);
+              box.appendChild(a);
+            });
+            btn.appendChild(box);
+          }
           btn.addEventListener("click", () => {
             loadHistoryItem(item);
             state.historyIndex = index;
@@ -5255,7 +5280,7 @@
       function debugBar(text) {
         const el = document.getElementById("histDebug");
         if (!el) return;
-        if (!DEBUG_ON) { el.hidden = true; return; }
+        if (!(DEBUG_ON || state.debug)) { el.hidden = true; return; }
         el.hidden = false;
         el.innerHTML = text;
       }
@@ -5271,6 +5296,10 @@
 
       /* ---------- v3.6.6：歷史面板的 inline 入口 ---------- */
       window.__zwdsHist = {
+        toggleDebug: function () {
+          state.debug = !state.debug;
+          renderHistPanel();
+        },
         toggleSearch: function () {
           const wrap = document.getElementById("histSearchWrap");
           const btn = document.getElementById("histAdvBtn");
@@ -5369,7 +5398,10 @@
   <aside class="hist-panel" id="histPanel" aria-hidden="true" aria-label="解讀歷史">
     <div class="hist-head">
       <strong>解讀歷史 <span class="hist-ver" id="histVer">v</span></strong>
-      <div class="hist-debug" id="histDebug">載入中…</div>
+      <div class="hist-debug" id="histDebug" hidden>載入中…</div>
+      <button class="icon-btn" id="histDebugBtn" type="button" aria-label="診斷"
+              title="顯示／隱藏診斷"
+              onclick="window.__zwdsHist&&window.__zwdsHist.toggleDebug()">🧪</button>
       <button class="icon-btn" id="histClose" type="button" aria-label="關閉">✕</button>
     </div>
     <div class="hist-gate" id="histGate">
