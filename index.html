@@ -2482,7 +2482,45 @@
     </section>
 
     <!-- 已選摘要 -->
-    <section class="summary glass" id="summary" aria-labelledby="summaryTitle">
+        <!-- 牌位 ＋ 想問的問題（v3.9：獨立卡片，唔再擠喺已選牌組內） -->
+    <div class="options-card glass">
+
+        <div class="orientation-panel" role="group" aria-label="牌位正倒設定">
+          <div class="orientation-item">
+            <span class="orientation-name">主星牌位</span>
+            <div class="orientation-toggle">
+              <button type="button" id="orientMainUp" class="is-on" onclick="window.__zwdsExtra&&window.__zwdsExtra.orient('main',false)">正位</button>
+              <button type="button" id="orientMainDown" onclick="window.__zwdsExtra&&window.__zwdsExtra.orient('main',true)">倒位</button>
+            </div>
+          </div>
+          <div class="orientation-item">
+            <span class="orientation-name">輔星牌位</span>
+            <div class="orientation-toggle">
+              <button type="button" id="orientSupportUp" class="is-on" onclick="window.__zwdsExtra&&window.__zwdsExtra.orient('support',false)">正位</button>
+              <button type="button" id="orientSupportDown" onclick="window.__zwdsExtra&&window.__zwdsExtra.orient('support',true)">倒位</button>
+            </div>
+          </div>
+          <div class="orientation-item">
+            <span class="orientation-name">長生牌位</span>
+            <div class="orientation-toggle">
+              <button type="button" id="orientLifeUp" class="is-on" onclick="window.__zwdsExtra&&window.__zwdsExtra.orient('life',false)">正位</button>
+              <button type="button" id="orientLifeDown" onclick="window.__zwdsExtra&&window.__zwdsExtra.orient('life',true)">倒位</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="question-field">
+          <label class="question-label" for="questionInput">想問的問題<span>選填 · 原文送出</span></label>
+          <textarea class="question-input" id="questionInput" rows="2" maxlength="500" spellcheck="false"
+                    placeholder="例如：未來三個月的工作發展該注意什麼？"
+                    oninput="window.__zwdsExtra&&window.__zwdsExtra.question(this)"></textarea>
+          <div class="question-meta">
+            <span>留空也可以，AI 會依牌面整體解讀。</span>
+            <span id="questionCount">0 / 500</span>
+          </div>
+        </div>
+    </div>
+<section class="summary glass" id="summary" aria-labelledby="summaryTitle">
       <div class="summary-head">
         <h2 class="summary-title" id="summaryTitle">已選牌組</h2>
         <div class="progress" aria-hidden="true">
@@ -2522,44 +2560,6 @@
     </section>
 
 
-    <!-- 牌位 ＋ 想問的問題（v3.9：獨立卡片，唔再擠喺已選牌組內） -->
-    <div class="options-card glass">
-
-        <div class="orientation-panel" role="group" aria-label="牌位正倒設定">
-          <div class="orientation-item">
-            <span class="orientation-name">主星牌位</span>
-            <div class="orientation-toggle">
-              <button type="button" id="orientMainUp" class="is-on" onclick="window.__zwdsExtra&&window.__zwdsExtra.orient('main',false)">正位</button>
-              <button type="button" id="orientMainDown" onclick="window.__zwdsExtra&&window.__zwdsExtra.orient('main',true)">倒位</button>
-            </div>
-          </div>
-          <div class="orientation-item">
-            <span class="orientation-name">輔星牌位</span>
-            <div class="orientation-toggle">
-              <button type="button" id="orientSupportUp" class="is-on" onclick="window.__zwdsExtra&&window.__zwdsExtra.orient('support',false)">正位</button>
-              <button type="button" id="orientSupportDown" onclick="window.__zwdsExtra&&window.__zwdsExtra.orient('support',true)">倒位</button>
-            </div>
-          </div>
-          <div class="orientation-item">
-            <span class="orientation-name">長生牌位</span>
-            <div class="orientation-toggle">
-              <button type="button" id="orientLifeUp" class="is-on" onclick="window.__zwdsExtra&&window.__zwdsExtra.orient('life',false)">正位</button>
-              <button type="button" id="orientLifeDown" onclick="window.__zwdsExtra&&window.__zwdsExtra.orient('life',true)">倒位</button>
-            </div>
-          </div>
-        </div>
-
-        <div class="question-field">
-          <label class="question-label" for="questionInput">想問的問題<span>選填 · 原文送出</span></label>
-          <textarea class="question-input" id="questionInput" rows="2" maxlength="500" spellcheck="false"
-                    placeholder="例如：未來三個月的工作發展該注意什麼？"
-                    oninput="window.__zwdsExtra&&window.__zwdsExtra.question(this)"></textarea>
-          <div class="question-meta">
-            <span>留空也可以，AI 會依牌面整體解讀。</span>
-            <span id="questionCount">0 / 500</span>
-          </div>
-        </div>
-    </div>
     <!-- 解讀結果 -->
     <section class="result glass" id="result" data-state="idle" aria-labelledby="resultTitle">
       <div class="result-head">
@@ -2754,7 +2754,7 @@
         FOLLOWUP_CONTEXT_MAX: 30000,   // 送給 AI 的原文上限（字元），超出會截斷
         FOLLOWUP_BLOCK_TOPICS: true,   // 拒答程式／數學／功課類問題
         STREAM: true,           // v2：串流輸出（逐字顯示）
-        APP_VERSION: "4.1.0",
+        APP_VERSION: "4.1.1",
         HISTORY_LIMIT: 2000
       });
 
