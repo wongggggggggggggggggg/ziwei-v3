@@ -2754,7 +2754,7 @@
         FOLLOWUP_CONTEXT_MAX: 30000,   // 送給 AI 的原文上限（字元），超出會截斷
         FOLLOWUP_BLOCK_TOPICS: true,   // 拒答程式／數學／功課類問題
         STREAM: true,           // v2：串流輸出（逐字顯示）
-        APP_VERSION: "4.0.1",
+        APP_VERSION: "4.0.2",
         HISTORY_LIMIT: 2000
       });
 
@@ -5518,6 +5518,11 @@
             " · max_tokens: " + (isFu ? 8000 : CONFIG.MAX_TOKENS) +
             " · stream: " + (CONFIG.STREAM ? "true" : "false");
         }
+        const kbSize = document.getElementById("kbSizeLabel");
+        if (kbSize) {
+          const kb = getPdfReference();
+          kbSize.textContent = kb ? "知識庫 " + kb.length.toLocaleString() + " 字" : "知識庫未載入";
+        }
         const kbFull = document.getElementById("kbFullBtn");
         const kbCheap = document.getElementById("kbCheapBtn");
         if (kbFull) kbFull.classList.toggle("is-on", state.useKnowledge !== false);
@@ -5741,6 +5746,7 @@
                 onclick="window.__zwdsExtra&&window.__zwdsExtra.setKb(true)">完整模式（含知識庫）</button>
         <button type="button" id="kbCheapBtn"
                 onclick="window.__zwdsExtra&&window.__zwdsExtra.setKb(false)">便宜模式（不含）</button>
+        <span id="kbSizeLabel" style="opacity:.55;font-size:.72rem;margin-left:4px"></span>
       </div>
       <details class="prompt-sys">
         <summary>系統提示詞與請求參數</summary>
