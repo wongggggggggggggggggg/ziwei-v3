@@ -2618,7 +2618,7 @@
         FOLLOWUP_CONTEXT_MAX: 30000,   // 送給 AI 的原文上限（字元），超出會截斷
         FOLLOWUP_BLOCK_TOPICS: true,   // 拒答程式／數學／功課類問題
         STREAM: true,           // v2：串流輸出（逐字顯示）
-        APP_VERSION: "3.6.5",
+        APP_VERSION: "3.6.6",
         HISTORY_LIMIT: 2000
       });
 
@@ -5012,7 +5012,15 @@
             const tip = document.createElement("p");
             tip.className = "hist-gate-text";
             tip.style.textAlign = "center";
-            tip.textContent = "名字要同你當時解讀輸入的一模一樣（例如大小寫）。";
+            const names = [];
+            loadHistory().forEach((it) => {
+              const n = String(it.name || "").trim();
+              if (n && names.indexOf(n) === -1) names.push(n);
+            });
+            const prefix = names.filter((n) => n.toLowerCase().indexOf(who.toLowerCase()) === 0);
+            tip.textContent = prefix.length
+              ? "名字未打完整？試下：" + prefix.join("、")
+              : "名字要同你當時解讀輸入的一模一樣（例如大小寫）。";
             box.appendChild(tip);
           }
           if (posEl) posEl.textContent = "0 / 0";
@@ -5201,6 +5209,22 @@
         refreshHistGate();
       }, true);
 
+      /* ---------- v3.6.6：歷史面板的 inline 入口 ---------- */
+      window.__zwdsHist = {
+        name: function (value) {
+          try {
+            state.histName = sanitizeText(value, 20);
+            try { window.localStorage.setItem("zwds.histname", state.histName); } catch (error) { /* 忽略 */ }
+            renderHistPanel();
+          } catch (error) {
+            const st = document.getElementById("histGateStatus");
+            if (st) st.textContent = "錯誤：" + (error && error.message ? error.message : "未知");
+          }
+        },
+        search: function () { renderHistPanel(); },
+        refresh: function () { renderHistPanel(); }
+      };
+
       /* 對外暴露少量內部函式，供離線自動測試使用（不影響一般操作） */
       window.__zwdsInternals = Object.freeze({
         version: CONFIG.APP_VERSION,
@@ -5272,12 +5296,19 @@
     <div class="hist-gate" id="histGate">
       <p class="hist-gate-title">先輸入你的名字</p>
       <p class="hist-gate-text">為保護私隱，未輸入名字之前唔會顯示任何紀錄。</p>
-      <input class="hist-search" id="histNameInput" type="text" maxlength="20" placeholder="你的名字（例如 Kevin）" aria-label="你的名字" />
+      <input class="hist-search" id="histNameInput" type="text" maxlength="20"
+             placeholder="你的名字（例如 Kevin）" aria-label="你的名字"
+             oninput="window.__zwdsHist&&window.__zwdsHist.name(this.value)"
+             onchange="window.__zwdsHist&&window.__zwdsHist.name(this.value)"
+             onkeyup="window.__zwdsHist&&window.__zwdsHist.name(this.value)"
+             onkeydown="if(event.key==='Enter'){event.preventDefault();window.__zwdsHist&&window.__zwdsHist.name(this.value,true)}" />
       <button class="hist-go" id="histNameBtn" type="button">查看我的紀錄</button>
       <p class="hist-gate-text" id="histGateStatus">狀態：未套用</p>
     </div>
 
-    <input class="hist-search" id="histSearch" type="text" maxlength="60" placeholder="搜尋名字／牌名／追問…" aria-label="搜尋歷史" />
+    <input class="hist-search" id="histSearch" type="text" maxlength="60" placeholder="搜尋名字／牌名／追問…" aria-label="搜尋歷史"
+           oninput="window.__zwdsHist&&window.__zwdsHist.search(this.value)"
+           onkeyup="window.__zwdsHist&&window.__zwdsHist.search(this.value)" />
     <div class="hist-list" id="histList"></div>
     <div class="hist-nav">
       <button class="hist-arrow" id="histPrev" type="button" aria-label="上一筆">‹</button>
