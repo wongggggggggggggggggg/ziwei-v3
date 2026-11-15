@@ -2183,6 +2183,11 @@
     }
     .hist-debug b { font-weight: 700; }
     .hist-gate { margin-bottom: 10px; }
+    .hist-label { display: block; font-size: .74rem; opacity: .65; margin: 6px 0 3px; }
+    .hist-clear {
+      background: none; border: 0; color: #7c5cff; font-size: .74rem; cursor: pointer;
+      padding: 4px 0; text-decoration: underline;
+    }
     .hist-gate-title { margin: 0 0 2px; font-size: .9rem; font-weight: 700; }
     .hist-gate-text { margin: 0 0 8px; font-size: .78rem; opacity: .7; line-height: 1.5; }
     .hist-go {
@@ -2629,7 +2634,7 @@
         FOLLOWUP_CONTEXT_MAX: 30000,   // 送給 AI 的原文上限（字元），超出會截斷
         FOLLOWUP_BLOCK_TOPICS: true,   // 拒答程式／數學／功課類問題
         STREAM: true,           // v2：串流輸出（逐字顯示）
-        APP_VERSION: "3.6.7",
+        APP_VERSION: "3.6.8",
         HISTORY_LIMIT: 2000
       });
 
@@ -4998,8 +5003,18 @@
           statusEl.textContent = "狀態：名字=「" + (who || "（空白）") + "」，紀錄共 " + loadHistory().length + " 筆";
         }
 
+        if (gate) gate.hidden = false;
+        const setHidden = (id, value) => {
+          const el = document.getElementById(id);
+          if (el) el.hidden = value;
+        };
+        setHidden("histGateTitle", Boolean(who));
+        setHidden("histGateText", Boolean(who));
+        setHidden("histNameBtn", Boolean(who));
+        setHidden("histGateStatus", Boolean(who));
+        setHidden("histClearBtn", !who);
+
         if (!who) {
-          if (gate) gate.hidden = false;
           box.textContent = "";
           const hint = document.createElement("p");
           hint.className = "hist-empty";
@@ -5012,7 +5027,6 @@
           if (n0) n0.disabled = true;
           return;
         }
-        if (gate) gate.hidden = true;
 
         const list = histItems();
         box.textContent = "";
@@ -5244,6 +5258,13 @@
 
       /* ---------- v3.6.6：歷史面板的 inline 入口 ---------- */
       window.__zwdsHist = {
+        clear: function () {
+          state.histName = "";
+          try { window.localStorage.removeItem("zwds.histname"); } catch (error) { /* 忽略 */ }
+          const input = document.getElementById("histNameInput");
+          if (input) input.value = "";
+          renderHistPanel();
+        },
         name: function (value) {
           try {
             state.histName = sanitizeText(value, 20);
@@ -5328,8 +5349,9 @@
       <button class="icon-btn" id="histClose" type="button" aria-label="關閉">✕</button>
     </div>
     <div class="hist-gate" id="histGate">
-      <p class="hist-gate-title">先輸入你的名字</p>
-      <p class="hist-gate-text">為保護私隱，未輸入名字之前唔會顯示任何紀錄。</p>
+      <p class="hist-gate-title" id="histGateTitle">先輸入你的名字</p>
+      <p class="hist-gate-text" id="histGateText">為保護私隱，未輸入名字之前唔會顯示任何紀錄。</p>
+      <label class="hist-label" for="histNameInput">你的名字</label>
       <input class="hist-search" id="histNameInput" type="text" maxlength="20"
              placeholder="你的名字（例如 Kevin）" aria-label="你的名字"
              oninput="window.__zwdsHist&&window.__zwdsHist.name(this.value)"
@@ -5337,6 +5359,8 @@
              onkeyup="window.__zwdsHist&&window.__zwdsHist.name(this.value)"
              onkeydown="if(event.key==='Enter'){event.preventDefault();window.__zwdsHist&&window.__zwdsHist.name(this.value,true)}" />
       <button class="hist-go" id="histNameBtn" type="button">查看我的紀錄</button>
+      <button class="hist-clear" id="histClearBtn" type="button" hidden
+              onclick="window.__zwdsHist&&window.__zwdsHist.clear()">清除名字</button>
       <p class="hist-gate-text" id="histGateStatus">狀態：未套用</p>
     </div>
 
