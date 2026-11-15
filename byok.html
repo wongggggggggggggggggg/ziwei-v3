@@ -2762,7 +2762,7 @@
         FOLLOWUP_CONTEXT_MAX: 30000,   // 送給 AI 的原文上限（字元），超出會截斷
         FOLLOWUP_BLOCK_TOPICS: true,   // 拒答程式／數學／功課類問題
         STREAM: true,           // v2：串流輸出（逐字顯示）
-        APP_VERSION: "4.2.0",
+        APP_VERSION: "4.2.1",
         HISTORY_LIMIT: 2000
       });
 
@@ -3550,6 +3550,7 @@
               apiMessage = "";
             }
             const isQuota = apiCode === "quota_exhausted" || apiCode === "global_blocked";
+          if (isQuota) window.setTimeout(() => { const chip = document.getElementById("quotaChip"); if (chip) chip.dataset.state = "blocked"; }, 0);
             const isSession = apiCode === "session_required";
             const message = isQuota
               ? (apiMessage || "本週免費次數已用完。")
@@ -3778,7 +3779,7 @@
           showError(normalized.message, normalized.code);
           if (normalized.code === "quota") {
             refreshQuota();
-            openSettings();
+            showToast("本週次數已用完，可撳右上齒輪輸入解鎖碼", "error");
           }
           if (normalized.code === "session") {
             pendingReading = true;
@@ -5141,7 +5142,10 @@
           delete a.dataset.streaming;
           if (status) status.textContent = "失敗：" + normalized.message;
           if (normalized.code === "session") { sessionToken = ""; showGate(); }
-          if (normalized.code === "quota") { refreshQuota(); openSettings(); }
+          if (normalized.code === "quota") {
+            refreshQuota();
+            if (status) status.textContent = "本週次數已用完。可撳右上齒輪 → 輸入解鎖碼。";
+          }
         } finally {
           state.followingUp = false;
           if (btn) btn.disabled = false;
