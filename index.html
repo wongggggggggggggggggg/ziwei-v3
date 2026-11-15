@@ -2215,12 +2215,20 @@
     .hist-item[data-active="1"] { border-color: #7c5cff; background: rgba(124, 92, 255, .08); }
     .hist-item strong { display: block; font-size: .86rem; margin-bottom: 2px; }
     .hist-item span { display: block; opacity: .7; font-size: .76rem; }
-    .hist-qa {
-      margin-top: .45rem; padding-top: .45rem; border-top: 1px dashed rgba(148, 163, 184, .35);
+    .hist-qa-box {
+      margin-top: .45rem; padding-top: .4rem; border-top: 1px dashed rgba(148, 163, 184, .35);
       font-size: .78rem; text-align: left;
     }
+    .hist-qa-summary {
+      cursor: pointer; list-style: none; display: inline-block;
+      padding: .22rem .6rem; border-radius: 999px; font-size: .74rem;
+      border: 1px solid rgba(124, 92, 255, .45); color: #7c5cff; user-select: none;
+    }
+    .hist-qa-summary::-webkit-details-marker { display: none; }
+    .hist-qa-summary::before { content: "▸ "; }
+    details[open] > .hist-qa-summary::before { content: "▾ "; }
     .hist-qa-q { font-weight: 600; margin: .25rem 0 .15rem; opacity: .9; }
-    .hist-qa-a { opacity: .75; line-height: 1.55; max-height: 5.5em; overflow: hidden; }
+    .hist-qa-a { opacity: .78; line-height: 1.6; }
     .hist-qa-a p { margin: .2rem 0; }
     .hist-empty { opacity: .65; font-size: .82rem; text-align: center; padding: 22px 0; }
     .hist-nav {
@@ -2647,7 +2655,7 @@
         FOLLOWUP_CONTEXT_MAX: 30000,   // 送給 AI 的原文上限（字元），超出會截斷
         FOLLOWUP_BLOCK_TOPICS: true,   // 拒答程式／數學／功課類問題
         STREAM: true,           // v2：串流輸出（逐字顯示）
-        APP_VERSION: "3.7.0",
+        APP_VERSION: "3.7.1",
         HISTORY_LIMIT: 2000
       });
 
@@ -5092,8 +5100,12 @@
 
           const follows = item.followups || [];
           if (follows.length) {
-            const box = document.createElement("div");
-            box.className = "hist-qa";
+            const details = document.createElement("details");
+            details.className = "hist-qa-box";
+            const summary = document.createElement("summary");
+            summary.className = "hist-qa-summary";
+            summary.textContent = "顯示追問（" + follows.length + " 條）";
+            details.appendChild(summary);
             follows.forEach((f, i) => {
               const q = document.createElement("div");
               q.className = "hist-qa-q";
@@ -5101,10 +5113,10 @@
               const a = document.createElement("div");
               a.className = "hist-qa-a";
               a.innerHTML = renderMarkdown(f.a || "");
-              box.appendChild(q);
-              box.appendChild(a);
+              details.appendChild(q);
+              details.appendChild(a);
             });
-            btn.appendChild(box);
+            btn.appendChild(details);
           }
           btn.addEventListener("click", () => {
             loadHistoryItem(item);
